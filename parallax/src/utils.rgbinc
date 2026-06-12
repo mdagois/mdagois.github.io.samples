@@ -1,0 +1,182 @@
+if !def(UTILS_RGBINC)
+def UTILS_RGBINC equ 1
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+include "hardware.rgbinc"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Memory
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Clear a memory region to zero.
+; \1 = start address
+; \2 = size
+macro ClearMemory
+    assert \2 > 0, "Clear size must be superior to zero"
+    ld hl, \1
+    .clear\@
+        xor a
+        ld [hli], a
+        ld a, low((\1) + (\2))
+        cp a, l
+        jr nz, .clear\@
+        ld a, high((\1) + (\2))
+        cp a, h
+        jr nz, .clear\@
+endm
+
+; Set a memory region to a given value.
+; \1 = start address
+; \2 = size
+; \3 = value
+macro SetMemory
+    assert \2 > 0, "Clear size must be superior to zero"
+    ld hl, \1
+    .set_memory\@
+        ld a, \3
+        ld [hli], a
+        ld a, low((\1) + (\2))
+        cp a, l
+        jr nz, .set_memory\@
+        ld a, high((\1) + (\2))
+        cp a, h
+        jr nz, .set_memory\@
+endm
+
+; Copy memory from one address to another.
+; \1 = destination
+; \2 = source
+; \3 = size
+macro CopyMemory
+    assert (\1 < \2) || (\1 >= \2 + \3), "Invalid memory range overlap"
+    ld hl, \1
+    ld de, \2
+    .copy\@
+        ld a, [de]
+        ld [hli], a
+        inc de
+
+        ld a, low((\1) + (\3))
+        cp a, l
+        jr nz, .copy\@
+        ld a, high((\1) + (\3))
+        cp a, h
+        jr nz, .copy\@
+endm
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Input
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Struct to hold the input (dpad + buttons).
+rsreset
+def INPUT_CURRENT   rb 1
+def INPUT_PREVIOUS  rb 1
+def INPUT_PRESSED   rb 1
+def INPUT_RELEASED  rb 1
+def sizeof_INPUT    rb 0
+
+; Initialize a input struct at address \1.
+; Expected to be used only once at initialization.
+; Example: InputInitialize _RAM + 16
+macro InputInitialize
+    ld a, $FF
+    ld [\1 + INPUT_CURRENT], a
+    ld [\1 + INPUT_PREVIOUS], a
+    ld [\1 + INPUT_PRESSED], a
+    ld [\1 + INPUT_RELEASED], a
+endm
+
+; Read the keypad input into a input struct at address \1.
+; Expected to be used only once in the main loop.
+; Example: InputUpdate _HRAM + 4
+macro InputUpdate
+    ; store the previous input into the struct and (c)
+    ld a, [\1 + INPUT_CURRENT]
+    ld [\1 + INPUT_PREVIOUS], a
+    ld c, a
+
+    ; read the dpad
+    ld a, P1F_GET_DPAD
+    ldh [rP1], a
+    ldh a, [rP1]
+    ldh a, [rP1]
+
+    ; put the dpad input into (b)'s high nibble
+    swap a
+    and a, $F0
+    ld b, a
+
+    ; read the buttons
+    ld a, P1F_GET_BTN
+    ldh [rP1], a
+    ldh a, [rP1]
+    ldh a, [rP1]
+    ldh a, [rP1]
+    ldh a, [rP1]
+    ldh a, [rP1]
+    ldh a, [rP1]
+
+    ; merge the buttons' input into (b)'s low nibble
+    and a, $0F
+    or a, b
+    ld b, a
+
+    ; store the current input
+    ld [\1 + INPUT_CURRENT], a
+
+    ; disable input polling
+    ld a, P1F_GET_NONE
+    ldh [rP1], a
+
+    ; compute and store pressed buttons
+    ld a, c
+    cpl
+    or a, b
+    ld [\1 + INPUT_PRESSED], a
+
+    ; compute and store released buttons
+    ld a, b
+    cpl
+    or a, c
+    ld [\1 + INPUT_RELEASED], a
+endm
+
+; Raise the zero flag if all keys in \2 are held in the input struct \1.
+; Example: InputTestHeld _RAM + 4, PADF_LEFT | PADF_DOWN
+macro InputTestHeld
+    ld a, [\1 + INPUT_CURRENT]
+    and a, \2
+endm
+
+; Raise the zero flag if input \2 is pressed in the input struct \1.
+; Example: InputTestPressed _HRAM + 12, PADF_LEFT
+macro InputTestPressed
+    ld a, [\1 + INPUT_PRESSED]
+    and a, \2
+endm
+
+; Raise the zero flag if input \2 is released in the input struct \1.
+; Example: InputTestReleased _RAM + 24, PADF_A
+macro InputTestReleased
+    ld a, [\1 + INPUT_RELEASED]
+    and a, \2
+endm
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Function calls
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Call the function pointed by (hl).
+macro CallHL
+    ld de, .call_return_address\@
+    push de
+    jp hl
+    .call_return_address\@
+endm
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+endc
+

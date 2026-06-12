@@ -1,0 +1,48 @@
+SUMMARY:
+	ROM0: 4879 bytes used / 27889 free
+
+ROM0 bank #0:
+	SECTION: $0000-$002b ($002c bytes) ["interrupts"]
+	         $0000 = LcdInterrupt
+	         $001e = LcdInterrupt.middle_section
+	SECTION: $002c-$003e ($0013 bytes) ["main"]
+	         $002c = main
+	         $002c = main.wait_vblank_u1
+	         $003a = main.loop
+	EMPTY: $003f-$003f ($0001 byte)
+	SECTION: $0040-$0047 ($0008 bytes) ["vblank_interrupt"]
+	SECTION: $0048-$004d ($0006 bytes) ["lcd_interrupt"]
+	SECTION: $004e-$00ff ($00b2 bytes) ["sample_initialization"]
+	         $004e = InitSample
+	         $005c = InitSample.clear_u1
+	         $006b = InitSample.clear_u2
+	         $007d = InitSample.copy_u3
+	         $0090 = InitSample.copy_u4
+	         $00a3 = InitSample.copy_u5
+	SECTION: $0100-$014f ($0050 bytes) ["header"]
+	         $0100 = entrypoint
+	SECTION: $0150-$117f ($1030 bytes) ["graphics_data"]
+	         $0150 = moon_chr
+	         $0ac0 = moon_chr_end
+	         $0ac0 = moon_idx
+	         $0d00 = astronaut_chr
+	         $0d00 = moon_idx_end
+	         $1180 = astronaut_chr_end
+	SECTION: $1180-$130f ($0190 bytes) ["sample_update"]
+	         $1180 = UpdateSample
+	         $1184 = UpdateSample.wait_vblank
+	         $118f = UpdateSample.copy_u6
+	         $11e9 = UpdateSample.input_handling
+	         $121e = UpdateSample.left_pressed
+	         $1252 = UpdateSample.right_pressed
+	         $1260 = UpdateSample.released
+	         $127a = UpdateSample.input_handling_done
+	         $127a = UpdateSample.astronaut_move
+	         $12b3 = UpdateSample.direction_left
+	         $12e7 = UpdateSample.astronaut_move_done
+	         $12e7 = UpdateSample.direction_right
+	         $12e7 = UpdateSample.astronaut_animation
+	         $1304 = UpdateSample.reset_frame
+	         $130f = UpdateSample.astronaut_animation_done
+	EMPTY: $1310-$7fff ($6cf0 bytes)
+	TOTAL EMPTY: $6cf1 bytes

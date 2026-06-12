@@ -1,0 +1,49 @@
+SUMMARY:
+	ROM0: 5445 bytes used / 27323 free
+
+ROM0 bank #0:
+	SECTION: $0000-$0012 ($0013 bytes) ["main"]
+	         $0000 = main
+	         $0000 = main.wait_vblank_u1
+	         $000e = main.loop
+	EMPTY: $0013-$003f ($002d bytes)
+	SECTION: $0040-$0040 ($0001 byte) ["vblank_interrupt"]
+	SECTION: $0041-$00ea ($00aa bytes) ["sample_initialization"]
+	         $0041 = InitSample
+	         $004f = InitSample.clear_u1
+	         $005e = InitSample.clear_u2
+	         $0070 = InitSample.copy_u3
+	         $0083 = InitSample.copy_u4
+	         $0096 = InitSample.copy_u5
+	EMPTY: $00eb-$00ff ($0015 bytes)
+	SECTION: $0100-$014f ($0050 bytes) ["header"]
+	         $0100 = entrypoint
+	SECTION: $0150-$13ff ($12b0 bytes) ["graphics_data"]
+	         $0150 = ship_chr
+	         $0940 = ship_chr_end
+	         $0940 = ship_parallax_chr
+	         $0d40 = ship_idx
+	         $0d40 = ship_parallax_chr_end
+	         $0f80 = astronaut_chr
+	         $0f80 = ship_idx_end
+	         $1400 = astronaut_chr_end
+	SECTION: $1400-$1586 ($0187 bytes) ["sample_update"]
+	         $1400 = UpdateSample
+	         $1407 = UpdateSample.copy_u6
+	         $1427 = UpdateSample.copy_wall_tiles
+	         $1468 = UpdateSample.input_handling
+	         $149d = UpdateSample.left_pressed
+	         $14d1 = UpdateSample.right_pressed
+	         $14df = UpdateSample.released
+	         $14f9 = UpdateSample.input_handling_done
+	         $14f9 = UpdateSample.astronaut_move
+	         $1522 = UpdateSample.direction_left
+	         $1546 = UpdateSample.astronaut_move_done
+	         $1546 = UpdateSample.direction_right
+	         $1546 = UpdateSample.astronaut_animation
+	         $1563 = UpdateSample.reset_frame
+	         $156e = UpdateSample.astronaut_animation_done
+	         $156e = UpdateSample.compute_wall_tile_address
+	         $1586 = UpdateSample.compute_wall_tile_address_done
+	EMPTY: $1587-$7fff ($6a79 bytes)
+	TOTAL EMPTY: $6abb bytes

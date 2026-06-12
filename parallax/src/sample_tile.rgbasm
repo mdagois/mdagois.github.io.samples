@@ -1,0 +1,374 @@
+include "utils.rgbinc"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Constants
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Position of the astronaut sprites
+def ASTRONAUT_X                     equ OAM_X_OFS + 72
+def ASTRONAUT_Y                     equ OAM_Y_OFS + 96
+
+; Parallax tile-related constants
+def BYTES_PER_TILE                  equ 16
+def WALL_TILE_COUNT                 equ 4
+
+; Speed of the parallax layers
+def FOREGROUND_SPEED_X              equ $0100
+def BACKGROUND_COUNTER_SPEED_X      equ $0080
+
+; Direction of the astronaut
+def DIRECTION_NONE                  equ 0
+def DIRECTION_LEFT                  equ 1
+def DIRECTION_RIGHT                 equ 2
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; WRAM variables
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+rsset _RAM
+
+; Input structure
+def WRAM_INPUT                      rb sizeof_INPUT
+
+; Horizontal positions for the parallax layers
+def WRAM_FOREGROUND_POSITION_X      rb 2
+def WRAM_BACKGROUND_POSITION_X      rb 2
+
+; Address of the wall starting tile for the frame
+def WRAM_WALL_STARTING_TILE_ADDRESS rb 2
+
+; Astronaut sprites (copied to oam each frame)
+def ASTRONAUT_SPRITES               rb sizeof_OAM_ATTRS * 2
+
+; Direction the astronaut is moving
+def ASTRONAUT_MOVE_DIRECTION        rb 1
+
+; Time left until the next animation update (in lcd frames)
+def ASTRONAUT_ANIMATION_COUNTER     rb 1
+; Number of lcd frames to display a single animation frame
+def ASTRONAUT_FRAME_DURATION        rb 1
+; Current animation frame
+def ASTRONAUT_FRAME_CURRENT         rb 1
+; First tile of the animation in vram
+def ASTRONAUT_FRAME_START           rb 1
+; End tile of the animation in vram (last tile + 1)
+def ASTRONAUT_FRAME_END             rb 1
+
+def WRAM_END                        rb 0
+
+def WRAM_SIZE                       equ (WRAM_END - _RAM)
+
+; Sanity check
+println "WRAM usage: {d:WRAM_SIZE} bytes"
+assert WRAM_SIZE <= $2000, "Too many bytes used in WRAM"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Interrupts
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "vblank_interrupt", rom0[$0040]
+    reti
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Astronaut animation
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Start an animation.
+; \1 = the first tile of the animation
+; \2 = the end tile of the animation (last tile + 1)
+; \3 = the update period of the animation (expressed in lcd frames)
+macro StartAnimation
+    ld a, \1
+    ld [ASTRONAUT_FRAME_START], a
+    ld [ASTRONAUT_FRAME_CURRENT], a
+    ld a, \2
+    ld [ASTRONAUT_FRAME_END], a
+    ld a, \3
+    ld [ASTRONAUT_FRAME_DURATION], a
+    ld [ASTRONAUT_ANIMATION_COUNTER], a
+endm
+
+; Start the idle animation.
+macro StartAnimationIdle
+    StartAnimation 0, 16, 15
+endm
+
+; Start the running animation.
+macro StartAnimationRunning
+    StartAnimation 16, 72, 8
+endm
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; 16-bit math
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Add a 16-bit literal to a 16-bit integer.
+; \1 = address of 2 bytes representing a 16-bit integer
+; \2 = 16-bit value to add
+macro u16_add
+    ld a, [\1 + 0]
+    add a, low(\2)
+    ld [\1 + 0], a
+    ld a, [\1 + 1]
+    adc a, high(\2)
+    ld [\1 + 1], a
+endm
+
+; Subtract a 16-bit literal from a 16-bit integer.
+; \1 = address of 2 bytes representing a 16-bit integer
+; \2 = 16-bit value to subtract
+macro u16_sub
+    ld a, [\1 + 0]
+    sub a, low(\2)
+    ld [\1 + 0], a
+    ld a, [\1 + 1]
+    sbc a, high(\2)
+    ld [\1 + 1], a
+endm
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Initialization
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "sample_initialization", rom0
+
+InitSample::
+    ; Set the palettes
+    ld a, %00011011
+    ld [rBGP], a
+    ld [rOBP0], a
+    ld [rOBP1], a
+
+    ; Clear the oam and wram
+    ClearMemory _OAMRAM, OAM_COUNT * sizeof_OAM_ATTRS
+    ClearMemory _RAM, WRAM_SIZE
+
+    ; Copy the graphics data to vram
+    CopyMemory _VRAM8000, astronaut_chr, astronaut_chr_end - astronaut_chr
+    CopyMemory _VRAM8800, ship_chr, ship_chr_end - ship_chr
+    CopyMemory _SCRN0, ship_idx, ship_idx_end - ship_idx
+
+    ; Initialize the input
+    InputInitialize WRAM_INPUT
+
+    ; Initialize the astronaut sprites
+    ld hl, ASTRONAUT_SPRITES
+        ld a, ASTRONAUT_Y
+        ld [hli], a
+        ld a, ASTRONAUT_X
+        ld [hli], a
+        ld a, 0
+        ld [hli], a
+        xor a
+        ld [hli], a
+
+        ld a, ASTRONAUT_Y
+        ld [hli], a
+        ld a, ASTRONAUT_X + 8
+        ld [hli], a
+        ld a, 2
+        ld [hli], a
+        xor a
+        ld [hli], a
+    StartAnimationIdle
+
+    ; Enable the vblank and lcd interrupts
+    ld a, IEF_VBLANK
+    ld [rIE], a
+    ei
+
+    ; Set the graphics and enable the lcd
+    ld a, LCDCF_ON | LCDCF_BGON | LCDCF_BG8800 | LCDCF_BG9800 | LCDCF_OBJON | LCDCF_OBJ16
+    ld [rLCDC], a
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Update
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "sample_update", rom0
+
+UpdateSample::
+    ; Wait for the vblank
+    halt
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ; Vblank
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+    ; Update the oam
+    CopyMemory _OAMRAM, ASTRONAUT_SPRITES, sizeof_OAM_ATTRS * 2
+
+    ; Set up the foreground scrolling from inside the vblank to avoid any
+    ; screen tearing
+    ld a, [WRAM_FOREGROUND_POSITION_X + 1]
+    ld [rSCX], a
+
+    ; Update the wall tiles with a copy from rom to vram
+    ld a, [WRAM_WALL_STARTING_TILE_ADDRESS + 0]
+    ld l, a
+    ld a, [WRAM_WALL_STARTING_TILE_ADDRESS + 1]
+    ld h, a
+    ld de, _VRAM8800
+    ld c, BYTES_PER_TILE * WALL_TILE_COUNT
+    .copy_wall_tiles
+        ld a, [hli]
+        ld [de], a
+        inc de
+        dec c
+        jr nz, .copy_wall_tiles
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ; Logic
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+    ; Update the input
+    InputUpdate WRAM_INPUT
+
+    .input_handling
+        InputTestPressed WRAM_INPUT, PADF_LEFT
+        jr nz, .left_pressed
+            ld a, DIRECTION_LEFT
+            ld [ASTRONAUT_MOVE_DIRECTION], a
+
+            ; Set the two sprites positions
+            ld a, ASTRONAUT_X + 8
+            ld [ASTRONAUT_SPRITES + OAMA_X], a
+            ld a, ASTRONAUT_X
+            ld [ASTRONAUT_SPRITES + sizeof_OAM_ATTRS + OAMA_X], a
+
+            ; Set the sprite horizontal flip
+            ld a, OAMF_XFLIP
+            ld [ASTRONAUT_SPRITES + OAMA_FLAGS], a
+            ld [ASTRONAUT_SPRITES + sizeof_OAM_ATTRS + OAMA_FLAGS], a
+
+            StartAnimationRunning
+            jr .input_handling_done
+        .left_pressed
+        InputTestPressed WRAM_INPUT, PADF_RIGHT
+        jr nz, .right_pressed
+            ld a, DIRECTION_RIGHT
+            ld [ASTRONAUT_MOVE_DIRECTION], a
+
+            ; Set the two sprites positions
+            ld a, ASTRONAUT_X
+            ld [ASTRONAUT_SPRITES + OAMA_X], a
+            ld a, ASTRONAUT_X + 8
+            ld [ASTRONAUT_SPRITES + sizeof_OAM_ATTRS + OAMA_X], a
+
+            ; Reset the sprite horizontal flip
+            xor a
+            ld [ASTRONAUT_SPRITES + OAMA_FLAGS], a
+            ld [ASTRONAUT_SPRITES + sizeof_OAM_ATTRS + OAMA_FLAGS], a
+
+            StartAnimationRunning
+            jr .input_handling_done
+        .right_pressed
+
+        ; Cancel all movement when either the left or right key is released
+        InputTestReleased WRAM_INPUT, PADF_LEFT
+        jr z, .released
+        InputTestReleased WRAM_INPUT, PADF_RIGHT
+        jr nz, .input_handling_done
+        .released
+            ld a, DIRECTION_NONE
+            ld [ASTRONAUT_MOVE_DIRECTION], a
+            StartAnimationIdle
+    .input_handling_done
+
+    .astronaut_move
+        ; Update all the scrolling values based on the astronaut direction
+        ld a, [ASTRONAUT_MOVE_DIRECTION]
+        cp a, DIRECTION_LEFT
+        jr nz, .direction_left
+            u16_sub WRAM_FOREGROUND_POSITION_X, FOREGROUND_SPEED_X
+            u16_sub WRAM_BACKGROUND_POSITION_X, BACKGROUND_COUNTER_SPEED_X
+            jr .astronaut_move_done
+        .direction_left
+        cp a, DIRECTION_RIGHT
+        jr nz, .direction_right
+            u16_add WRAM_FOREGROUND_POSITION_X, FOREGROUND_SPEED_X
+            u16_add WRAM_BACKGROUND_POSITION_X, BACKGROUND_COUNTER_SPEED_X
+        .direction_right
+    .astronaut_move_done
+
+    .astronaut_animation
+        ; Check whether the animation must be updated
+        ld a, [ASTRONAUT_ANIMATION_COUNTER]
+        dec a
+        ld [ASTRONAUT_ANIMATION_COUNTER], a
+        jr nz, .astronaut_animation_done
+
+        ; Reset the animation update counter
+        ld a, [ASTRONAUT_FRAME_DURATION]
+        ld [ASTRONAUT_ANIMATION_COUNTER], a
+
+        ; Update the current frame
+        ld hl, ASTRONAUT_FRAME_END
+        ld a, [ASTRONAUT_FRAME_CURRENT]
+        add a, 4
+        cp a, [hl]
+        jr nz, .reset_frame
+            ; Go back to the first frame if we reached the end of the animation
+            ld a, [ASTRONAUT_FRAME_START]
+        .reset_frame
+        ld [ASTRONAUT_FRAME_CURRENT], a
+
+        ; Update the tile id of both sprites
+        ld [ASTRONAUT_SPRITES + OAMA_TILEID], a
+        add a, 2
+        ld [ASTRONAUT_SPRITES + sizeof_OAM_ATTRS + OAMA_TILEID], a
+    .astronaut_animation_done
+
+    ; Compute the wall starting tile address in rom
+    .compute_wall_tile_address
+        ; Compute the tile batch index (there are 16 batches of 4 tiles each)
+        ; The index is from 0 to 16
+        ld a, [WRAM_BACKGROUND_POSITION_X + 1]
+        and a, $0F
+
+        ; Compute the byte offset of the batch by multiplying the batch index
+        ; by 64, as each tile batch has 64 bytes
+        swap a
+        ld h, 0
+        ld l, a
+        add hl, hl
+        add hl, hl
+
+        ; Compute the starting tile address in the rom by adding the address
+        ; of the tiles in the rom and the batch byte offset
+        ld de, ship_parallax_chr
+        add hl, de
+
+        ; Store the address so that it can be quickly retrieved during vblank
+        ld a, l
+        ld [WRAM_WALL_STARTING_TILE_ADDRESS + 0], a
+        ld a, h
+        ld [WRAM_WALL_STARTING_TILE_ADDRESS + 1], a
+    .compute_wall_tile_address_done
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Graphics data
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "graphics_data", rom0
+
+ship_chr:
+incbin "ship.chr"
+ship_chr_end:
+
+ship_parallax_chr:
+incbin "ship_parallax.chr"
+ship_parallax_chr_end:
+
+ship_idx:
+incbin "ship.idx"
+ship_idx_end:
+
+astronaut_chr:
+incbin "astronaut.chr"
+astronaut_chr_end:
+
