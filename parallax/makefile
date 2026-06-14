@@ -62,19 +62,44 @@ clean:
 	@rm -rf $(TMP_DIR)
 
 ##############################################################################
-# Helpers
 ##############################################################################
 
 # rule to make directories
 %/:
 	@mkdir -p $(dir $@)
 
+define check_path
+$(strip \
+    $(if $(filter Windows_NT,$(OS)), \
+        $(shell where $(1)), \
+        $(shell command -v $(1) 2>/dev/null) \
+    ) \
+)
+endef
+
+##############################################################################
+# Inferences
+##############################################################################
+
+ASEPRITE_CHECK := $(call check_path,aseprite)
+GCONV_CHECK :=  $(call check_path,gconv)
+
+ASEPRITE := aseprite
+ifeq ($(wildcard $(ASEPRITE_CHECK)),)
+ASEPRITE := echo
+endif
+
+GCONV := gconv
+ifeq ($(wildcard $(GCONV_CHECK)),)
+GCONV := echo
+endif
+
 ##############################################################################
 # Assets rules
 ##############################################################################
 
 $(RESOURCES_DIR)/%.png: $(ASSETS_DIR)/%.aseprite | $$(@D)/
-	@aseprite --batch $< --save-as $@
+	@$(ASEPRITE) --batch $< --save-as $@
 
 GCONV_COMMON_OPT = -o $(RESOURCES_DIR) -spal -sti -smi -v
 GCONV_OPT =
@@ -82,13 +107,13 @@ GCONV_TILEMAP_LIST =
 
 $(RESOURCES_DIR)/astronaut.chr: GCONV_OPT += -hw dmg-sp -tsd "16x16s:8x16k"
 $(RESOURCES_DIR)/moon.chr: GCONV_OPT += -hw dmg-bg -trm doubles -8800
-$(RESOURCES_DIR)/moon.chr: GCONV_TILEMAP_LIST += $(RESOURCES_DIR)/moon.png
+$(RESOURCES_DIR)/moon.chr: GCONV_TILEMAP_LIST += -tm $(RESOURCES_DIR)/moon.png
 $(RESOURCES_DIR)/ship.chr: GCONV_OPT += -hw dmg-bg -trm doubles -8800 -tsd "16x16k"
-$(RESOURCES_DIR)/ship.chr: GCONV_TILEMAP_LIST += $(RESOURCES_DIR)/ship.png
+$(RESOURCES_DIR)/ship.chr: GCONV_TILEMAP_LIST += -tm $(RESOURCES_DIR)/ship.png
 $(RESOURCES_DIR)/ship_parallax.chr: GCONV_OPT += -hw dmg-bg -8800 -tsd "16x16k"
 
 $(RESOURCES_DIR)/%.chr: $(RESOURCES_DIR)/%.png | $$(@D)/
-	@gconv $(GCONV_COMMON_OPT) $(GCONV_OPT) -ts $< $(GCONV_TILEMAP_LIST)
+	@$(GCONV) $(GCONV_COMMON_OPT) $(GCONV_OPT) -ts $< $(GCONV_TILEMAP_LIST)
 
 ##############################################################################
 # ROM rules
