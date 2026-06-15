@@ -21,7 +21,8 @@ TILE_ASSETS_FILES = astronaut ship ship_parallax
 # Inferences
 ##############################################################################
 
-RESOURCES_DIR = $(TMP_DIR)/resources
+RESOURCES_DIR = resources
+OBJECTS_DIR = $(TMP_DIR)/objects
 ROMS_DIR = $(PREBUILT_DIR)/roms
 
 HBLANK_ASSETS_TARGETS = $(addsuffix .chr,$(addprefix $(RESOURCES_DIR)/,$(HBLANK_ASSETS_FILES)))
@@ -34,14 +35,14 @@ HBLANK_ROM_TARGET = $(ROMS_DIR)/$(HBLANK_SAMPLE_NAME).gb
 HBLANK_ROM_MAP_FILE = $(ROMS_DIR)/$(HBLANK_SAMPLE_NAME).map
 HBLANK_ROM_SYMBOLS_FILE = $(ROMS_DIR)/$(HBLANK_SAMPLE_NAME).sym
 HBLANK_SOURCE_FILES = $(COMMON_SOURCE_FILES) $(SOURCES_DIR)/sample_hblank.rgbasm
-HBLANK_OBJECT_FILES = $(subst $(SOURCES_DIR),$(RESOURCES_DIR),$(HBLANK_SOURCE_FILES:.rgbasm=.o))
+HBLANK_OBJECT_FILES = $(subst $(SOURCES_DIR),$(OBJECTS_DIR),$(HBLANK_SOURCE_FILES:.rgbasm=.o))
 
 # tile sample
 TILE_ROM_TARGET = $(ROMS_DIR)/$(TILE_SAMPLE_NAME).gb
 TILE_ROM_MAP_FILE = $(ROMS_DIR)/$(TILE_SAMPLE_NAME).map
 TILE_ROM_SYMBOLS_FILE = $(ROMS_DIR)/$(TILE_SAMPLE_NAME).sym
 TILE_SOURCE_FILES = $(COMMON_SOURCE_FILES) $(SOURCES_DIR)/sample_tile.rgbasm
-TILE_OBJECT_FILES = $(subst $(SOURCES_DIR),$(RESOURCES_DIR),$(TILE_SOURCE_FILES:.rgbasm=.o))
+TILE_OBJECT_FILES = $(subst $(SOURCES_DIR),$(OBJECTS_DIR),$(TILE_SOURCE_FILES:.rgbasm=.o))
 
 ##############################################################################
 # Main rules
@@ -59,40 +60,48 @@ tile: $(TILE_ROM_TARGET)
 
 .PHONY: clean
 clean:
-	@rm -rf $(TMP_DIR)
+	@$(if $(HAS_ASSET_PIPELINE),rm -rf $(RESOURCES_DIR),)
+	@rm -rf $(OBJECTS_DIR)
 
 ##############################################################################
+# Helpers
 ##############################################################################
 
 # rule to make directories
 %/:
 	@mkdir -p $(dir $@)
 
-define check_path
-$(strip \
-    $(if $(filter Windows_NT,$(OS)), \
-        $(shell where $(1)), \
-        $(shell command -v $(1) 2>/dev/null) \
-    ) \
-)
+true := TRUE
+false :=
+
+not = $(if $1,$(false),$(true))
+
+SHELL := bash
+noop := true
+
+define get_path
+$(shell command -v $(1) 2>/dev/null)
+endef
+
+define has_path
+$(if $(call get_path,$(1)),$(true),$(false))
+endef
+
+define get_path_or_default
+$(if $(call has_path,$(1)),"$(call get_path,$(1))","$(2)")
+endef
+
+define get_path_or_noop
+$(call get_path_or_default,$(1),$(noop))
 endef
 
 ##############################################################################
-# Inferences
+# Tools
 ##############################################################################
 
-ASEPRITE_CHECK := $(call check_path,aseprite)
-GCONV_CHECK :=  $(call check_path,gconv)
-
-ASEPRITE := aseprite
-ifeq ($(wildcard $(ASEPRITE_CHECK)),)
-ASEPRITE := echo
-endif
-
-GCONV := gconv
-ifeq ($(wildcard $(GCONV_CHECK)),)
-GCONV := echo
-endif
+HAS_ASSET_PIPELINE := $(call not,$(call not,$(call has_path,aseprite))$(call not,$(call has_path,gconv)))
+ASEPRITE := $(call get_path_or_noop,aseprite)
+GCONV := $(call get_path_or_noop,gconv)
 
 ##############################################################################
 # Assets rules
@@ -119,15 +128,15 @@ $(RESOURCES_DIR)/%.chr: $(RESOURCES_DIR)/%.png | $$(@D)/
 # ROM rules
 ##############################################################################
 
-$(RESOURCES_DIR)/sample_hblank.o: $(HBLANK_ASSETS_TARGETS)
-$(RESOURCES_DIR)/sample_hblank.o: $(SOURCES_DIR)/sample_hblank.rgbasm $(wildcard $(SOURCES_DIR)/*.rgbinc) | $$(@D)/
+$(OBJECTS_DIR)/sample_hblank.o: $(HBLANK_ASSETS_TARGETS)
+$(OBJECTS_DIR)/sample_hblank.o: $(SOURCES_DIR)/sample_hblank.rgbasm $(wildcard $(SOURCES_DIR)/*.rgbinc) | $$(@D)/
 	@rgbasm -Werror -Weverything -I$(RESOURCES_DIR) -I$(SOURCES_DIR) -o $@ $<
 
-$(RESOURCES_DIR)/sample_tile.o: $(TILE_ASSETS_TARGETS)
-$(RESOURCES_DIR)/sample_tile.o: $(SOURCES_DIR)/sample_tile.rgbasm $(wildcard $(SOURCES_DIR)/*.rgbinc) | $$(@D)/
+$(OBJECTS_DIR)/sample_tile.o: $(TILE_ASSETS_TARGETS)
+$(OBJECTS_DIR)/sample_tile.o: $(SOURCES_DIR)/sample_tile.rgbasm $(wildcard $(SOURCES_DIR)/*.rgbinc) | $$(@D)/
 	@rgbasm -Werror -Weverything -I$(RESOURCES_DIR) -I$(SOURCES_DIR) -o $@ $<
 
-$(RESOURCES_DIR)/%.o: $(SOURCES_DIR)/%.rgbasm $(wildcard $(SOURCES_DIR)/*.rgbinc) | $$(@D)/
+$(OBJECTS_DIR)/%.o: $(SOURCES_DIR)/%.rgbasm $(wildcard $(SOURCES_DIR)/*.rgbinc) | $$(@D)/
 	@rgbasm -Werror -Weverything -I$(RESOURCES_DIR) -I$(SOURCES_DIR) -o $@ $<
 
 $(HBLANK_ROM_TARGET): $(HBLANK_ASSETS_TARGETS)
