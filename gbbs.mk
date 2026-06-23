@@ -229,7 +229,7 @@ define target_variable_definitions_template
 # Variables for '$1_$2'
 ########################################
 
-$1_$2_sources_list = $$($1_sources) $$($1_$2_sources)
+$1_$2_sources_list = $$($1_sources) $$($2_sources) $$($1_$2_sources)
 
 $1_$2_prerequisites_list = $$($1_prerequisites) $$($1_$2_prerequisites)
 
