@@ -1,0 +1,99 @@
+include "utils.rgbinc"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; WRAM variables
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+rsset _RAM
+
+; Flag to determine whether vblank has executed this frame
+def WRAM_IS_VBLANK                  rb 1
+
+; Input structure
+def WRAM_INPUT                      rb sizeof_INPUT
+
+def WRAM_END                        rb 0
+
+def WRAM_SIZE                       equ (WRAM_END - _RAM)
+
+; Sanity check
+println "WRAM usage: {d:WRAM_SIZE} bytes"
+assert WRAM_SIZE <= $2000, "Too many bytes used in WRAM"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Interrupts
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "vblank_interrupt", rom0[$0040]
+    push af
+    ld a, 1
+    ld [WRAM_IS_VBLANK], a
+    pop af
+    reti
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Initialization
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "sample_initialization", rom0
+
+InitSample::
+    ; Set the palettes
+    ld a, %00011011
+    ld [rBGP], a
+    ld [rOBP0], a
+    ld [rOBP1], a
+
+    ; Clear the oam and wram
+    ClearMemory _OAMRAM, OAM_COUNT * sizeof_OAM_ATTRS
+    ClearMemory _RAM, WRAM_SIZE
+
+    ; Initialize the input
+    InputInitialize WRAM_INPUT
+
+    ; Enable the vblank and lcd interrupts
+    ld a, IEF_VBLANK
+    ld [rIE], a
+    ei
+
+    ; Set the graphics and enable the lcd
+    ld a, LCDCF_ON | LCDCF_BGON | LCDCF_BG8800 | LCDCF_BG9800 | LCDCF_OBJON | LCDCF_OBJ16
+    ld [rLCDC], a
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Update
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "sample_update", rom0
+
+UpdateSample::
+    ; Wait for the vblank
+    ld hl, WRAM_IS_VBLANK
+    xor a
+    .wait_vblank
+        halt
+        cp a, [hl]
+        jr z, .wait_vblank
+        ld [hl], a
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ; Vblank
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ; Logic
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+    ; Update the input
+    InputUpdate WRAM_INPUT
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Graphics data
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "graphics_data", rom0
+

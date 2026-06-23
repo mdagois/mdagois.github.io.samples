@@ -4,12 +4,16 @@
 # Global
 ################################################################################
 
-projects = parallax_hblank parallax_tile
+assets_directory = assets
+resources_directory = res
+common_directory = src/common
+
+projects = parallax_hblank parallax_tile popslide
 configurations = release
 build_directory = build
 default_target = all
 
-compile_options = -Werror -Weverything
+compile_options = -Werror -Weverything -I$(resources_directory) -I$(common_directory)
 fix_options = --pad-value 0 --validate
 
 ##############################################################################
@@ -23,9 +27,6 @@ gconv := $(call get_path_or_noop,gconv)
 ################################################################################
 # Assets
 ################################################################################
-
-assets_directory = assets
-resources_directory = res
 
 $(resources_directory)/%.png: $(assets_directory)/%.aseprite | $$(@D)/
 	@$(aseprite) --batch $< --save-as $@
@@ -52,17 +53,28 @@ clean_assets:
 # Parallax samples
 ################################################################################
 
-parallax_sources_directory = parallax/src
+parallax_sources_directory = src/parallax
 
-parallax_hblank_compile_options = -I$(parallax_sources_directory) -I$(resources_directory)
+parallax_hblank_compile_options = -I$(parallax_sources_directory)
 parallax_hblank_link_options = --dmg --tiny
 parallax_hblank_sources = $(addprefix $(parallax_sources_directory)/,main.rgbasm sample_hblank.rgbasm)
 parallax_hblank_prerequisites = $(addprefix $(resources_directory)/,astronaut.chr ship.chr ship_parallax.chr)
 
 parallax_tile_compile_options = $(parallax_hblank_compile_options)
 parallax_tile_link_options = $(parallax_hblank_link_options)
-parallax_tile_sources = $(addprefix parallax/src/,main.rgbasm sample_tile.rgbasm)
+parallax_tile_sources = $(addprefix $(parallax_sources_directory)/,main.rgbasm sample_tile.rgbasm)
 parallax_tile_prerequisites = $(addprefix $(resources_directory)/,astronaut.chr moon.chr)
+
+################################################################################
+# Pop slide samples
+################################################################################
+
+popslide_sources_directory = src/popslide
+
+popslide_compile_options = -I$(popslide_sources_directory)
+popslide_link_options = --dmg --tiny
+popslide_sources = $(addprefix $(popslide_sources_directory)/,main.rgbasm sample.rgbasm)
+popslide_prerequisites =
 
 ################################################################################
 # Game Boy Build System
