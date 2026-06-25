@@ -62,12 +62,12 @@ parallax_sources_directory = src/parallax
 parallax_hblank_compile_options = -I$(parallax_sources_directory)
 parallax_hblank_link_options = --dmg --tiny
 parallax_hblank_sources = $(addprefix $(parallax_sources_directory)/,sample_hblank.rgbasm)
-parallax_hblank_prerequisites = $(addprefix $(resources_directory)/,astronaut.chr ship.chr ship_parallax.chr)
+parallax_hblank_prerequisites = $(addprefix $(resources_directory)/,astronaut.chr moon.chr)
 
 parallax_tile_compile_options = $(parallax_hblank_compile_options)
 parallax_tile_link_options = $(parallax_hblank_link_options)
 parallax_tile_sources = $(addprefix $(parallax_sources_directory)/,sample_tile.rgbasm)
-parallax_tile_prerequisites = $(addprefix $(resources_directory)/,astronaut.chr moon.chr)
+parallax_tile_prerequisites = $(addprefix $(resources_directory)/,astronaut.chr ship.chr ship_parallax.chr)
 
 ################################################################################
 # Pop slide samples
