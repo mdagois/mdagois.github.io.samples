@@ -8,7 +8,7 @@ assets_directory = assets
 resources_directory = res
 common_directory = src/common
 
-projects = parallax_hblank parallax_tile popslide_disabled popslide_enabled
+projects = parallax_hblank parallax_tile popslide
 configurations = release
 build_directory = build
 default_target = all
@@ -70,20 +70,15 @@ parallax_tile_sources = $(addprefix $(parallax_sources_directory)/,sample_tile.r
 parallax_tile_prerequisites = $(addprefix $(resources_directory)/,astronaut.chr ship.chr ship_parallax.chr)
 
 ################################################################################
-# Pop slide samples
+# Pop slide sample
 ################################################################################
 
 popslide_sources_directory = src/popslide
 
-popslide_disabled_compile_options = -I$(popslide_sources_directory)
-popslide_disabled_link_options = --dmg --tiny
-popslide_disabled_sources = $(addprefix $(popslide_sources_directory)/,sample.rgbasm)
-popslide_disabled_prerequisites = $(addprefix $(resources_directory)/,gb_pixel_art_jam_2024_xcb.chr)
-
-popslide_enabled_compile_options = $(popslide_disabled_compile_options) -DENABLE_POPSLIDE
-popslide_enabled_link_options = $(popslide_disabled_link_options)
-popslide_enabled_sources = $(popslide_disabled_sources)
-popslide_enabled_prerequisites = $(popslide_disabled_prerequisites)
+popslide_compile_options = -I$(popslide_sources_directory)
+popslide_link_options = --dmg --tiny
+popslide_sources = $(addprefix $(popslide_sources_directory)/,sample.rgbasm)
+popslide_prerequisites = $(addprefix $(resources_directory)/,gb_pixel_art_jam_2024_xcb.chr)
 
 ################################################################################
 # Game Boy Build System

@@ -6,11 +6,11 @@ include "utils.rgbinc"
 
 rsset _RAM
 
-; Flag to determine whether vblank has executed this frame
-def WRAM_IS_VBLANK                  rb 1
-
 ; Input structure
 def WRAM_INPUT                      rb sizeof_INPUT
+
+; Stack pointer backup
+def WRAM_STACK_POINTER              rb 2
 
 def WRAM_END                        rb 0
 
@@ -25,11 +25,94 @@ assert WRAM_SIZE <= $2000, "Too many bytes used in WRAM"
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 section "vblank_interrupt", rom0[$0040]
-    push af
-    ld a, 1
-    ld [WRAM_IS_VBLANK], a
-    pop af
     reti
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Macros
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Copy \3 bytes from \1 to \2.
+; \1 = source
+; \2 = destination
+; \3 = size
+macro copy_brute_force
+    ld de, \1
+    ld hl, \2
+    ld bc, \3
+    .copy_loop\@
+        ; copy a byte from source to destination
+        ld a, [de]
+        ld [hli], a
+        inc de
+
+        ; check if the copy is over
+        dec bc
+        ld a, c
+        or a, b
+        jr nz, .copy_loop\@
+endm
+
+; Copy \3 bytes from \1 to \2.
+; \1 = source
+; \2 = destination
+; \3 = size
+macro copy_optimized
+    assert \3 & $0F == 0, "The size must be a multiple of 16"
+    assert \3 < 16 * 256, "The size must be inferior or equal to 4096"
+
+    ld de, \1
+    ld hl, \2
+
+    ld c, \3 / 16
+    .copy_loop\@
+        ; copy 16 bytes
+        rept 16
+        ld a, [de]
+        ld [hli], a
+        inc de
+        endr
+
+        ; check if the copy is over
+        dec c
+        jr nz, .copy_loop\@
+endm
+
+; Copy \3 bytes from \1 to \2.
+; \1 = source
+; \2 = destination
+; \3 = size
+macro copy_popside
+    assert \3 & $0F == 0, "The size must be a multiple of 16"
+    assert \3 < 16 * 256, "The size must be inferior or equal to 4096"
+
+    ; save the stack pointer
+    ld [WRAM_STACK_POINTER], sp
+
+    ld sp, \1
+    ld hl, \2
+
+    ld c, \3 / 16
+    .copy_loop\@
+        ; copy 16 bytes
+        rept 8
+        pop de
+        ld a, e
+        ld [hli], a
+        ld a, d
+        ld [hli], a
+        endr
+
+        ; check if the copy is over
+        dec c
+        jr nz, .copy_loop\@
+
+    ; restore the stack pointer
+    ld hl, WRAM_STACK_POINTER
+    ld a, [hli]
+    ld h, [hl]
+    ld l, a
+    ld sp, hl
+endm
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Initialization
@@ -51,13 +134,16 @@ InitSample::
     ; Initialize the input
     InputInitialize WRAM_INPUT
 
+    ; Copy the graphics data to vram
+    copy_brute_force graphics_data, _VRAM, 8 * 1024
+
     ; Enable the vblank and lcd interrupts
     ld a, IEF_VBLANK
     ld [rIE], a
     ei
 
     ; Set the graphics and enable the lcd
-    ld a, LCDCF_ON | LCDCF_BGON | LCDCF_BG8800 | LCDCF_BG9800 | LCDCF_OBJON | LCDCF_OBJ16
+    ld a, LCDCF_ON | LCDCF_BGON | LCDCF_BG8800 | LCDCF_BG9800
     ld [rLCDC], a
 
     ret
@@ -70,13 +156,7 @@ section "sample_update", rom0
 
 UpdateSample::
     ; Wait for the vblank
-    ld hl, WRAM_IS_VBLANK
-    xor a
-    .wait_vblank
-        halt
-        cp a, [hl]
-        jr z, .wait_vblank
-        ld [hl], a
+    halt
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ; Vblank
@@ -96,4 +176,18 @@ UpdateSample::
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 section "graphics_data", rom0
+
+graphics_data:
+
+ds 2 * 1024, 0
+chr_data_start:
+; include the tiles data
+incbin "gb_pixel_art_jam_2024_xcb.chr"
+chr_data_end:
+; add padding to fill the remaining tile space in vram
+ds 4 * 1024 - (chr_data_end - chr_data_start), 0
+
+; copy the tilemap twice just to copy them over
+incbin "gb_pixel_art_jam_2024_xcb.idx"
+incbin "gb_pixel_art_jam_2024_xcb.idx"
 
