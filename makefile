@@ -22,9 +22,9 @@ release_sources = $(common_directory)/main.rgbasm
 # Tools
 ##############################################################################
 
-has_asset_pipeline := $(call not,$(call not,$(call has_path,aseprite))$(call not,$(call has_path,gconv)))
-aseprite := $(call get_path_or_noop,aseprite)
-gconv := $(call get_path_or_noop,gconv)
+has_asset_pipeline = $(call not,$(call not,$(call has_path,aseprite))$(call not,$(call has_path,gconv)))
+aseprite = $(call get_path_or_noop,aseprite)
+gconv = $(call get_path_or_noop,gconv)
 
 ################################################################################
 # Assets
@@ -38,6 +38,8 @@ gconv_opt =
 gconv_tilemap_list =
 
 $(resources_directory)/astronaut.chr: gconv_opt += -hw dmg-sp -tsd "16x16s:8x16k"
+$(resources_directory)/gb_pixel_art_jam_2024_xcb.chr: gconv_opt += -hw dmg-bg -trm doubles -8800 -tsd "8x8k"
+$(resources_directory)/gb_pixel_art_jam_2024_xcb.chr: gconv_tilemap_list += -tm $(resources_directory)/gb_pixel_art_jam_2024_xcb.png
 $(resources_directory)/moon.chr: gconv_opt += -hw dmg-bg -trm doubles -8800
 $(resources_directory)/moon.chr: gconv_tilemap_list += -tm $(resources_directory)/moon.png
 $(resources_directory)/ship.chr: gconv_opt += -hw dmg-bg -trm doubles -8800 -tsd "16x16k"
@@ -76,7 +78,7 @@ popslide_sources_directory = src/popslide
 popslide_disabled_compile_options = -I$(popslide_sources_directory)
 popslide_disabled_link_options = --dmg --tiny
 popslide_disabled_sources = $(addprefix $(popslide_sources_directory)/,sample.rgbasm)
-popslide_disabled_prerequisites =
+popslide_disabled_prerequisites = $(addprefix $(resources_directory)/,gb_pixel_art_jam_2024_xcb.chr)
 
 popslide_enabled_compile_options = $(popslide_disabled_compile_options) -DENABLE_POPSLIDE
 popslide_enabled_link_options = $(popslide_disabled_link_options)

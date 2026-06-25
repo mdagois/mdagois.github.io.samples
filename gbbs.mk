@@ -23,11 +23,11 @@ SHELL := bash
 ########################################
 
 # define true and false
-true := TRUE
-false :=
+true = TRUE
+false =
 
 # an operation that does nothing in shell
-noop := true
+noop = true
 
 # turn the relative path $1 into an absolute path
 expand_path = $(abspath $(strip $1))
