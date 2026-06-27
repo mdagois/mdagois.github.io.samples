@@ -32,7 +32,9 @@ section "vblank_interrupt", rom0[$0040]
 ; \1 = source
 ; \2 = destination
 ; \3 = size
-macro CopyBruteForce
+if def(USE_BRUTE_FORCE)
+println "USING BRUTE FORCE"
+macro CopyData
     ld de, \1
     ld hl, \2
     ld bc, \3
@@ -48,12 +50,9 @@ macro CopyBruteForce
         or a, b
         jr nz, .loop\@
 endm
-
-; Copy \3 bytes from \1 to \2.
-; \1 = source
-; \2 = destination
-; \3 = size
-macro CopyOptimized
+elif def(USE_OPTIMIZED)
+println "USING OPTIMIZED"
+macro CopyData
     assert \3 & $1F == 0, "The size must be a multiple of 32"
     assert \3 <= 32 * 256, "The size must be inferior or equal to 8192"
 
@@ -73,12 +72,9 @@ macro CopyOptimized
         dec c
         jr nz, .loop\@
 endm
-
-; Copy \3 bytes from \1 to \2.
-; \1 = source
-; \2 = destination
-; \3 = size
-macro CopyPopslide
+elif def(USE_POPSLIDE)
+println "USING POPSLIDE"
+macro CopyData
     assert \3 & $1F == 0, "The size must be a multiple of 32"
     assert \3 <= 32 * 256, "The size must be inferior or equal to 8192"
 
@@ -110,6 +106,9 @@ macro CopyPopslide
     ld l, a
     ld sp, hl
 endm
+else
+    assert 0, "The copy method must be set."
+endc
 
 ; Reset BGB's clock counter.
 macro ResetClockCounter
@@ -148,22 +147,9 @@ InitSample::
     ClearMemory _OAMRAM, OAM_COUNT * sizeof_OAM_ATTRS
     ClearMemory _RAM, WRAM_SIZE
 
-    ResetClockCounter
-
     ; Copy the graphics data to vram
-if def(USE_BRUTE_FORCE)
-    println "USING BRUTE FORCE"
-    CopyBruteForce graphics_data, _VRAM, 8 * 1024
-elif def(USE_OPTIMIZED)
-    println "USING OPTIMIZED"
-    CopyOptimized graphics_data, _VRAM, 8 * 1024
-elif def(USE_POPSLIDE)
-    println "USING POPSLIDE"
-    CopyPopslide graphics_data, _VRAM, 8 * 1024
-else
-    assert 0, "The copy method must be set."
-endc
-
+    ResetClockCounter
+    CopyData graphics_data, _VRAM, 8 * 1024
     PrintClockCounter
 
     ; Enable the vblank and lcd interrupts
