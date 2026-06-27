@@ -1,0 +1,28 @@
+SUMMARY:
+	ROM0: 8518 bytes used / 24250 free
+
+ROM0 bank #0:
+	SECTION: $0000-$0012 ($0013 bytes) ["main"]
+	         $0000 = main
+	         $0000 = main.wait_vblank_u1
+	         $000e = main.loop
+	SECTION: $0013-$0014 ($0002 bytes) ["sample_update"]
+	         $0013 = UpdateSample
+	EMPTY: $0015-$003f ($002b bytes)
+	SECTION: $0040-$0040 ($0001 byte) ["vblank_interrupt"]
+	EMPTY: $0041-$00ff ($00bf bytes)
+	SECTION: $0100-$014f ($0050 bytes) ["header"]
+	         $0100 = entrypoint
+	SECTION: $0150-$214f ($2000 bytes) ["graphics_data"]
+	         $0150 = graphics_data
+	         $0950 = chr_data_start
+	         $12a0 = chr_data_end
+	SECTION: $2150-$222f ($00e0 bytes) ["sample_initialization"]
+	         $2150 = InitSample
+	         $215e = InitSample.clear_u1
+	         $216d = InitSample.clear_u2
+	         $219f = InitSample.skip_u3
+	         $21a7 = InitSample.loop_u4
+	         $2224 = InitSample.skip_u5
+	EMPTY: $2230-$7fff ($5dd0 bytes)
+	TOTAL EMPTY: $5eba bytes
