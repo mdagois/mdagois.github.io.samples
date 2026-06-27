@@ -35,11 +35,11 @@ section "vblank_interrupt", rom0[$0040]
 ; \1 = source
 ; \2 = destination
 ; \3 = size
-macro copy_brute_force
+macro CopyBruteForce
     ld de, \1
     ld hl, \2
     ld bc, \3
-    .copy_loop\@
+    .loop\@
         ; copy a byte from source to destination
         ld a, [de]
         ld [hli], a
@@ -49,24 +49,24 @@ macro copy_brute_force
         dec bc
         ld a, c
         or a, b
-        jr nz, .copy_loop\@
+        jr nz, .loop\@
 endm
 
 ; Copy \3 bytes from \1 to \2.
 ; \1 = source
 ; \2 = destination
 ; \3 = size
-macro copy_optimized
-    assert \3 & $0F == 0, "The size must be a multiple of 16"
-    assert \3 < 16 * 256, "The size must be inferior or equal to 4096"
+macro CopyOptimized
+    assert \3 & $1F == 0, "The size must be a multiple of 32"
+    assert \3 <= 32 * 256, "The size must be inferior or equal to 8192"
 
     ld de, \1
     ld hl, \2
 
-    ld c, \3 / 16
-    .copy_loop\@
-        ; copy 16 bytes
-        rept 16
+    ld c, (\3 / 32) & 255
+    .loop\@
+        ; copy 32 bytes
+        rept 32
         ld a, [de]
         ld [hli], a
         inc de
@@ -74,16 +74,16 @@ macro copy_optimized
 
         ; check if the copy is over
         dec c
-        jr nz, .copy_loop\@
+        jr nz, .loop\@
 endm
 
 ; Copy \3 bytes from \1 to \2.
 ; \1 = source
 ; \2 = destination
 ; \3 = size
-macro copy_popside
-    assert \3 & $0F == 0, "The size must be a multiple of 16"
-    assert \3 < 16 * 256, "The size must be inferior or equal to 4096"
+macro CopyPopslide
+    assert \3 & $1F == 0, "The size must be a multiple of 32"
+    assert \3 <= 32 * 256, "The size must be inferior or equal to 8192"
 
     ; save the stack pointer
     ld [WRAM_STACK_POINTER], sp
@@ -91,10 +91,10 @@ macro copy_popside
     ld sp, \1
     ld hl, \2
 
-    ld c, \3 / 16
-    .copy_loop\@
-        ; copy 16 bytes
-        rept 8
+    ld c, (\3 / 32) & 255
+    .loop\@
+        ; copy 32 bytes
+        rept 16
         pop de
         ld a, e
         ld [hli], a
@@ -104,7 +104,7 @@ macro copy_popside
 
         ; check if the copy is over
         dec c
-        jr nz, .copy_loop\@
+        jr nz, .loop\@
 
     ; restore the stack pointer
     ld hl, WRAM_STACK_POINTER
@@ -120,6 +120,24 @@ endm
 
 section "sample_initialization", rom0
 
+macro ResetClockCounter
+    ld d, d
+    jr .skip\@
+    dw $6464
+    dw $0000
+    db "Clock counter reset %ZEROCLKS%", 0
+    .skip\@
+endm
+
+macro PrintClockCounter
+    ld d, d
+    jr .skip\@
+    dw $6464
+    dw $0000
+    db "Cycles: %LASTCLKS%", 0
+    .skip\@
+endm
+
 InitSample::
     ; Set the palettes
     ld a, %00011011
@@ -134,8 +152,23 @@ InitSample::
     ; Initialize the input
     InputInitialize WRAM_INPUT
 
+    ResetClockCounter
+
     ; Copy the graphics data to vram
-    copy_brute_force graphics_data, _VRAM, 8 * 1024
+if def(USE_BRUTE_FORCE)
+    println "USING BRUTE FORCE"
+    CopyBruteForce graphics_data, _VRAM, 8 * 1024
+elif def(USE_OPTIMIZED)
+    println "USING OPTIMIZED"
+    CopyOptimized graphics_data, _VRAM, 8 * 1024
+elif def(USE_POPSLIDE)
+    println "USING POPSLIDE"
+    CopyPopslide graphics_data, _VRAM, 8 * 1024
+else
+    assert 0, "The copy method must be set."
+endc
+
+    PrintClockCounter
 
     ; Enable the vblank and lcd interrupts
     ld a, IEF_VBLANK

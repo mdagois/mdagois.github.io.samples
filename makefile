@@ -8,7 +8,7 @@ assets_directory = assets
 resources_directory = res
 common_directory = src/common
 
-projects = parallax_hblank parallax_tile popslide
+projects = parallax_hblank parallax_tile copy_brute_force copy_optimized copy_popslide
 configurations = release
 build_directory = build
 default_target = all
@@ -70,15 +70,30 @@ parallax_tile_sources = $(addprefix $(parallax_sources_directory)/,sample_tile.r
 parallax_tile_prerequisites = $(addprefix $(resources_directory)/,astronaut.chr ship.chr ship_parallax.chr)
 
 ################################################################################
-# Pop slide sample
+# Copy samples
 ################################################################################
 
-popslide_sources_directory = src/popslide
+copy_sources_directory = src/popslide
 
-popslide_compile_options = -I$(popslide_sources_directory)
-popslide_link_options = --dmg --tiny
-popslide_sources = $(addprefix $(popslide_sources_directory)/,sample.rgbasm)
-popslide_prerequisites = $(addprefix $(resources_directory)/,gb_pixel_art_jam_2024_xcb.chr)
+copy_compile_options = -I$(copy_sources_directory)
+copy_link_options = --dmg --tiny
+copy_sources = $(addprefix $(copy_sources_directory)/,sample.rgbasm)
+copy_prerequisites = $(addprefix $(resources_directory)/,gb_pixel_art_jam_2024_xcb.chr)
+
+copy_brute_force_compile_options = $(copy_compile_options) -DUSE_BRUTE_FORCE
+copy_brute_force_link_options = $(copy_link_options)
+copy_brute_force_sources = $(copy_sources)
+copy_brute_force_prerequisites = $(copy_prerequisites)
+
+copy_optimized_compile_options = $(copy_compile_options)  -DUSE_OPTIMIZED
+copy_optimized_link_options = $(copy_link_options)
+copy_optimized_sources = $(copy_sources)
+copy_optimized_prerequisites = $(copy_prerequisites)
+
+copy_popslide_compile_options = $(copy_compile_options) -DUSE_POPSLIDE
+copy_popslide_link_options = $(copy_link_options)
+copy_popslide_sources = $(copy_sources)
+copy_popslide_prerequisites = $(copy_prerequisites)
 
 ################################################################################
 # Game Boy Build System
