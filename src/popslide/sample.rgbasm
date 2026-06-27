@@ -6,9 +6,6 @@ include "utils.rgbinc"
 
 rsset _RAM
 
-; Input structure
-def WRAM_INPUT                      rb sizeof_INPUT
-
 ; Stack pointer backup
 def WRAM_STACK_POINTER              rb 2
 
@@ -114,12 +111,7 @@ macro CopyPopslide
     ld sp, hl
 endm
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Initialization
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-section "sample_initialization", rom0
-
+; Reset BGB's clock counter.
 macro ResetClockCounter
     ld d, d
     jr .skip\@
@@ -129,6 +121,7 @@ macro ResetClockCounter
     .skip\@
 endm
 
+; Print BGB's clock counter value.
 macro PrintClockCounter
     ld d, d
     jr .skip\@
@@ -137,6 +130,12 @@ macro PrintClockCounter
     db "Cycles: %LASTCLKS%", 0
     .skip\@
 endm
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Initialization
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "sample_initialization", rom0
 
 InitSample::
     ; Set the palettes
@@ -148,9 +147,6 @@ InitSample::
     ; Clear the oam and wram
     ClearMemory _OAMRAM, OAM_COUNT * sizeof_OAM_ATTRS
     ClearMemory _RAM, WRAM_SIZE
-
-    ; Initialize the input
-    InputInitialize WRAM_INPUT
 
     ResetClockCounter
 
@@ -190,18 +186,6 @@ section "sample_update", rom0
 UpdateSample::
     ; Wait for the vblank
     halt
-
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ; Vblank
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ; Logic
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-    ; Update the input
-    InputUpdate WRAM_INPUT
-
     ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -212,15 +196,18 @@ section "graphics_data", rom0
 
 graphics_data:
 
+; Add padding to fill the first, unused, 2 KiB of tile data
 ds 2 * 1024, 0
+
+; Include the tiles data
 chr_data_start:
-; include the tiles data
 incbin "gb_pixel_art_jam_2024_xcb.chr"
 chr_data_end:
-; add padding to fill the remaining tile space in vram
+
+; Add padding to fill the remaining tile space in vram
 ds 4 * 1024 - (chr_data_end - chr_data_start), 0
 
-; copy the tilemap twice just to copy them over
+; Copy the tilemap twice just to fill the whole vram
 incbin "gb_pixel_art_jam_2024_xcb.idx"
 incbin "gb_pixel_art_jam_2024_xcb.idx"
 
