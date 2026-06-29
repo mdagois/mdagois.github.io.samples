@@ -1,0 +1,199 @@
+include "utils.rgbinc"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; WRAM variables
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+rsset _RAM
+
+; Stack pointer backup
+def WRAM_STACK_POINTER              rb 2
+
+def WRAM_END                        rb 0
+
+def WRAM_SIZE                       equ (WRAM_END - _RAM)
+
+; Sanity check
+println "WRAM usage: {d:WRAM_SIZE} bytes"
+assert WRAM_SIZE <= $2000, "Too many bytes used in WRAM"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Interrupts
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "vblank_interrupt", rom0[$0040]
+    reti
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Macros
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Copy \3 bytes from \1 to \2.
+; \1 = source
+; \2 = destination
+; \3 = size
+if def(USE_BRUTE_FORCE)
+println "USING BRUTE FORCE"
+macro CopyData
+    ld de, \1
+    ld hl, \2
+    ld bc, \3
+    .loop\@
+        ; copy a byte from source to destination
+        ld a, [de]
+        ld [hli], a
+        inc de
+
+        ; check if the copy is over
+        dec bc
+        ld a, c
+        or a, b
+        jr nz, .loop\@
+endm
+elif def(USE_OPTIMIZED)
+println "USING OPTIMIZED"
+macro CopyData
+    assert \3 & $1F == 0, "The size must be a multiple of 32"
+    assert \3 <= 32 * 256, "The size must be inferior or equal to 8192"
+
+    ld de, \1
+    ld hl, \2
+
+    ld c, (\3 / 32) & 255
+    .loop\@
+        ; copy 32 bytes
+        rept 32
+        ld a, [de]
+        ld [hli], a
+        inc de
+        endr
+
+        ; check if the copy is over
+        dec c
+        jr nz, .loop\@
+endm
+elif def(USE_POPSLIDE)
+println "USING POPSLIDE"
+macro CopyData
+    assert \3 & $1F == 0, "The size must be a multiple of 32"
+    assert \3 <= 32 * 256, "The size must be inferior or equal to 8192"
+
+    ; save the stack pointer
+    ld [WRAM_STACK_POINTER], sp
+
+    ld sp, \1
+    ld hl, \2
+
+    ld c, (\3 / 32) & 255
+    .loop\@
+        ; copy 32 bytes
+        rept 16
+        pop de
+        ld a, e
+        ld [hli], a
+        ld a, d
+        ld [hli], a
+        endr
+
+        ; check if the copy is over
+        dec c
+        jr nz, .loop\@
+
+    ; restore the stack pointer
+    ld hl, WRAM_STACK_POINTER
+    ld a, [hli]
+    ld h, [hl]
+    ld l, a
+    ld sp, hl
+endm
+else
+    assert 0, "The copy method must be set."
+endc
+
+; Reset BGB's clock counter.
+macro ResetClockCounter
+    ld d, d
+    jr .skip\@
+    dw $6464
+    dw $0000
+    db "Clock counter reset %ZEROCLKS%", 0
+    .skip\@
+endm
+
+; Print BGB's clock counter value.
+macro PrintClockCounter
+    ld d, d
+    jr .skip\@
+    dw $6464
+    dw $0000
+    db "Cycles: %-8+LASTCLKS%", 0
+    .skip\@
+endm
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Initialization
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "sample_initialization", rom0
+
+InitSample::
+    ; Set the palettes
+    ld a, %00011011
+    ld [rBGP], a
+    ld [rOBP0], a
+    ld [rOBP1], a
+
+    ; Clear the oam and wram
+    ClearMemory _OAMRAM, OAM_COUNT * sizeof_OAM_ATTRS
+    ClearMemory _RAM, WRAM_SIZE
+
+    ; Copy the graphics data to vram
+    ResetClockCounter
+    CopyData graphics_data, _VRAM, 8 * 1024
+    PrintClockCounter
+
+    ; Enable the vblank and lcd interrupts
+    ld a, IEF_VBLANK
+    ld [rIE], a
+    ei
+
+    ; Set the graphics and enable the lcd
+    ld a, LCDCF_ON | LCDCF_BGON | LCDCF_BG8800 | LCDCF_BG9800
+    ld [rLCDC], a
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Update
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "sample_update", rom0
+
+UpdateSample::
+    ; Wait for the vblank
+    halt
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Graphics data
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "graphics_data", rom0
+
+graphics_data:
+
+; Add padding to fill the first, unused, 2 KiB of tile data
+ds 2 * 1024, 0
+
+; Include the tiles data
+chr_data_start:
+incbin "gb_pixel_art_jam_2024_xcb.chr"
+chr_data_end:
+
+; Add padding to fill the remaining tile space in vram
+ds 4 * 1024 - (chr_data_end - chr_data_start), 0
+
+; Copy the tilemap twice just to fill the whole vram
+incbin "gb_pixel_art_jam_2024_xcb.idx"
+incbin "gb_pixel_art_jam_2024_xcb.idx"
+
