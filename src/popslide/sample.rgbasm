@@ -126,7 +126,7 @@ macro PrintClockCounter
     jr .skip\@
     dw $6464
     dw $0000
-    db "Cycles: %LASTCLKS%", 0
+    db "Cycles: %-8+LASTCLKS%", 0
     .skip\@
 endm
 
