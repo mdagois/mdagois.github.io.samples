@@ -1,0 +1,89 @@
+include "utils.rgbinc"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; WRAM variables
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+rsset _RAM
+
+def WRAM_POSITION_X                 rb 2
+
+def WRAM_END                        rb 0
+
+def WRAM_SIZE                       equ (WRAM_END - _RAM)
+
+; Sanity check
+println "WRAM usage: {d:WRAM_SIZE} bytes"
+assert WRAM_SIZE <= $2000, "Too many bytes used in WRAM"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Interrupts
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "vblank_interrupt", rom0[$0040]
+    reti
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Initialization
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "sample_initialization", rom0
+
+InitSample::
+    ; Set the palettes
+    ld a, %00011011
+    ld [rBGP], a
+    ld [rOBP0], a
+    ld [rOBP1], a
+
+    ; Clear the oam and wram
+    ClearMemory _OAMRAM, OAM_COUNT * sizeof_OAM_ATTRS
+    ClearMemory _RAM, WRAM_SIZE
+
+    ; TODO Copy the tileset to vram
+    ; TODO Copy the starting tilemap to vram
+
+    ; Enable the vblank and lcd interrupts
+    ld a, IEF_VBLANK
+    ld [rIE], a
+    ei
+
+    ; Set the graphics and enable the lcd
+    ld a, LCDCF_ON | LCDCF_BGON | LCDCF_BG8800 | LCDCF_BG9800
+    ld [rLCDC], a
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Update
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "sample_update", rom0
+
+UpdateSample::
+    ; TODO Get input
+    ; TODO Determine if we must stream a column or not
+    ; TODO If we must stream, compute the data source address and the data destination address
+
+    ; Wait for the vblank
+    halt
+    ; TODO If any data to copy, copy it
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Graphics data
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "graphics_data", rom0
+
+; Include the tiles data
+chr_data:
+incbin "level.chr"
+chr_data_end:
+
+; Include the tile indices
+idx_data:
+incbin "level.idx"
+idx_data_end:
+

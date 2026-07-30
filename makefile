@@ -8,7 +8,10 @@ assets_directory = assets
 resources_directory = res
 common_directory = src/common
 
-projects = parallax_hblank parallax_tile copy_brute_force copy_optimized copy_popslide
+projects =\
+	copy_brute_force copy_optimized copy_popslide\
+	levelstream\
+	parallax_hblank parallax_tile
 configurations = release
 build_directory = build
 default_target = all
@@ -40,6 +43,8 @@ gconv_tilemap_list =
 $(resources_directory)/astronaut.chr: gconv_opt += -hw dmg-sp -tsd "16x16s:8x16k"
 $(resources_directory)/gb_pixel_art_jam_2024_xcb.chr: gconv_opt += -hw dmg-bg -trm doubles -8800 -tsd "8x8k"
 $(resources_directory)/gb_pixel_art_jam_2024_xcb.chr: gconv_tilemap_list += -tm $(resources_directory)/gb_pixel_art_jam_2024_xcb.png
+$(resources_directory)/level.chr: gconv_opt += -hw dmg-bg -trm doubles -8800
+$(resources_directory)/level.chr: gconv_tilemap_list += -tm $(resources_directory)/level.png
 $(resources_directory)/moon.chr: gconv_opt += -hw dmg-bg -trm doubles -8800
 $(resources_directory)/moon.chr: gconv_tilemap_list += -tm $(resources_directory)/moon.png
 $(resources_directory)/ship.chr: gconv_opt += -hw dmg-bg -trm doubles -8800 -tsd "16x16k"
@@ -94,6 +99,17 @@ copy_popslide_compile_options = $(copy_compile_options) -DUSE_POPSLIDE
 copy_popslide_link_options = $(copy_link_options)
 copy_popslide_sources = $(copy_sources)
 copy_popslide_prerequisites = $(copy_prerequisites)
+
+################################################################################
+# Level streaming samples
+################################################################################
+
+levelstream_sources_directory = src/levelstream
+
+levelstream_compile_options = -I$(levelstream_sources_directory)
+levelstream_link_options = --dmg --tiny
+levelstream_sources = $(addprefix $(levelstream_sources_directory)/,sample.rgbasm)
+levelstream_prerequisites = $(addprefix $(resources_directory)/,level.chr)
 
 ################################################################################
 # Game Boy Build System
