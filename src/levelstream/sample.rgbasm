@@ -1,6 +1,12 @@
 include "utils.rgbinc"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Constants
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+def LEVEL_PAN_MAX                   equ 8
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; WRAM variables
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -11,6 +17,7 @@ def WRAM_INPUT                      rb sizeof_INPUT
 
 ; Position inside the level
 def WRAM_POSITION_X                 rb 2
+def WRAM_MOVE_X                     rb 1
 
 ; column copy request
 def WRAM_COLUMN_COPY_SOURCE         rb 2
@@ -64,6 +71,10 @@ InitSample::
     ; Input initialization
     InputInitialize WRAM_INPUT
 
+    ; Initialize non-zero variables
+    ld a, 1
+    ld [WRAM_MOVE_X], a
+
     ; Copy the tileset to vram
     CopyMemory chr_data, _VRAM + 2 * 1024, chr_data_end - chr_data
 
@@ -94,17 +105,53 @@ InitSample::
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 UpdateSample::
-    ; Update the input and handle key events
+    ; Update the input
     InputUpdate WRAM_INPUT
+
+    ; Update pan speed, keeping it between in range [1-8]
+    InputTestHeld WRAM_INPUT, PADF_UP
+    jr nz, .up
+        ld a, [WRAM_MOVE_X]
+        inc a
+        cp a, LEVEL_PAN_MAX
+        jr c, .pan_increase
+            ld [WRAM_MOVE_X], a
+        .pan_increase
+    .up
+    InputTestHeld WRAM_INPUT, PADF_DOWN
+    jr nz, .down
+        ld a, [WRAM_MOVE_X]
+        dec a
+        jr z, .pan_decrease
+            ld [WRAM_MOVE_X], a
+        .pan_decrease
+    .down
+
+    ; Update pan position
     InputTestHeld WRAM_INPUT, PADF_LEFT
     jr nz, .left
-        ; TODO Handle left
+        ld a, [WRAM_MOVE_X]
+        ld b, a
+        ld a, [WRAM_POSITION_X + 0]
+        sub a, b
+        ld [WRAM_POSITION_X + 0], a
+        ld a, [WRAM_POSITION_X + 1]
+        sbc a, 0
+        ld [WRAM_POSITION_X + 1], a
     .left
     InputTestHeld WRAM_INPUT, PADF_RIGHT
     jr nz, .right
-        ; TODO Handle right
+        ld a, [WRAM_MOVE_X]
+        ld b, a
+        ld a, [WRAM_POSITION_X + 0]
+        add a, b
+        ld [WRAM_POSITION_X + 0], a
+        ld a, [WRAM_POSITION_X + 1]
+        adc a, 0
+        ld [WRAM_POSITION_X + 1], a
     .right
 
+    ; TODO Clamp pan position
     ; TODO Determine if we must stream a column or not
     ; TODO If we must stream, compute the data source address and the data destination address
 
