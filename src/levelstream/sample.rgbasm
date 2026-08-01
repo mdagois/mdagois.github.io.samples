@@ -6,7 +6,15 @@ include "utils.rgbinc"
 
 rsset _RAM
 
-def WRAM_INPUT                     rb sizeof_INPUT
+; Input state
+def WRAM_INPUT                      rb sizeof_INPUT
+
+; Position inside the level
+def WRAM_POSITION_X                 rb 2
+
+; column copy request
+def WRAM_COLUMN_COPY_SOURCE         rb 2
+def WRAM_COLUMN_COPY_DESTINATION    rb 2
 
 def WRAM_END                        rb 0
 
@@ -59,7 +67,7 @@ InitSample::
     ; Copy the tileset to vram
     CopyMemory chr_data, _VRAM + 2 * 1024, chr_data_end - chr_data
 
-    ; TODO Copy the starting tilemap to vram
+    ; Copy the starting columns to vram
     def TILEMAP_OFFSET = 0
     def ROM_OFFSET = 0
     rept SCRN_X_B
@@ -102,7 +110,20 @@ UpdateSample::
 
     ; Wait for the vblank
     halt
-    ; TODO If any data to copy, copy it
+
+    ; Check if there is any request (source is not $0000)
+    Load16 de, WRAM_COLUMN_COPY_SOURCE
+    ld a, d
+    or a, e
+    jr z, .column_request
+        ; Copy the column
+        Load16 hl, WRAM_COLUMN_COPY_DESTINATION
+        call CopyColumn
+
+        ; Clear the request
+        ld de, $0000
+        Store16 WRAM_COLUMN_COPY_SOURCE, de
+    .column_request
 
     ret
 
