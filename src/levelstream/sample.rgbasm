@@ -18,6 +18,7 @@ def WRAM_INPUT                      rb sizeof_INPUT
 
 ; Position inside the level
 def WRAM_POSITION_X                 rb 2
+def WRAM_PREVIOUS_POSITION_X        rb 2
 def WRAM_MOVE_X                     rb 1
 
 ; column copy request
@@ -131,6 +132,12 @@ InitSample::
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 UpdateSample::
+    ; Save previous position
+    ld a, [WRAM_POSITION_X + 0]
+    ld [WRAM_PREVIOUS_POSITION_X + 0], a
+    ld a, [WRAM_POSITION_X + 1]
+    ld [WRAM_PREVIOUS_POSITION_X + 1], a
+
     ; Update the input
     InputUpdate WRAM_INPUT
 
@@ -223,8 +230,7 @@ UpdateSample::
     .column_request
 
     ; Set horizontal scrolling
-    ld a, [WRAM_POSITION_X]
-    and a, $07
+    ld a, [WRAM_POSITION_X + 0]
     ld [rSCX], a
 
     ret
