@@ -4,7 +4,7 @@ include "utils.rgbinc"
 ; Constants
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-def LEVEL_PAN_MAX                   equ 8
+def LEVEL_MOVE_MAX                  equ 8
 def LEVEL_MAX_X                     equ 1600
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -33,6 +33,23 @@ println "WRAM usage: {d:WRAM_SIZE} bytes"
 assert WRAM_SIZE <= $2000, "Too many bytes used in WRAM"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Graphics data
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "graphics_data", rom0
+
+; Tileset
+chr_data:
+incbin "level.chr"
+chr_data_end:
+assert chr_data_end - chr_data < 4 * 1024, "Too many tiles in tileset (maximum 256 tiles)"
+
+; Tilemap columns
+idx_data:
+incbin "level.idx"
+idx_data_end:
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Interrupts
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -40,10 +57,14 @@ section "vblank_interrupt", rom0[$0040]
     reti
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Initialization
+; Sample code
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 section "sample", rom0
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Helpers
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; Copy 18 indices from a source address in rom to a destination address in vram
 ; de = source address in the rom
@@ -57,6 +78,10 @@ CopyColumn:
         add hl, bc
     endr
     ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Initialization
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 InitSample::
     ; Set the palettes
@@ -101,20 +126,20 @@ InitSample::
 
     ret
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Update
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 UpdateSample::
     ; Update the input
     InputUpdate WRAM_INPUT
 
-    ; Update pan speed, keeping it between in range [1-8]
+    ; Update move speed, keeping it between in range [1-8]
     InputTestHeld WRAM_INPUT, PADF_UP
     jr nz, .up
         ld a, [WRAM_MOVE_X]
         inc a
-        cp a, LEVEL_PAN_MAX
+        cp a, LEVEL_MOVE_MAX
         jr c, .pan_increase
             ld [WRAM_MOVE_X], a
         .pan_increase
@@ -197,22 +222,10 @@ UpdateSample::
         Store16 WRAM_COLUMN_COPY_SOURCE, de
     .column_request
 
+    ; Set horizontal scrolling
+    ld a, [WRAM_POSITION_X]
+    and a, $07
+    ld [rSCX], a
+
     ret
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Graphics data
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-section "graphics_data", rom0
-
-; Tileset
-chr_data:
-incbin "level.chr"
-chr_data_end:
-assert chr_data_end - chr_data < 4 * 1024, "Too many tiles in tileset (maximum 256 tiles)"
-
-; Tilemap columns
-idx_data:
-incbin "level.idx"
-idx_data_end:
 
