@@ -5,6 +5,7 @@ include "utils.rgbinc"
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 def LEVEL_PAN_MAX                   equ 8
+def LEVEL_MAX_X                     equ 1600
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; WRAM variables
@@ -151,7 +152,31 @@ UpdateSample::
         ld [WRAM_POSITION_X + 1], a
     .right
 
-    ; TODO Clamp pan position
+    ; Clamp pan position if necessary
+    Load16 hl, WRAM_POSITION_X
+    bit 7, h
+    jr z, .position_underflow
+        ; Position is below zero, clamp to zero
+        ld hl, 0
+        Store16 WRAM_POSITION_X, hl
+        jr .position_clamped
+    .position_underflow
+    ld a, high(LEVEL_MAX_X)
+    cp a, h
+    jr nc, .position_clamped
+    jr nz, .position_overflow
+
+    ld a, low(LEVEL_MAX_X)
+    cp a, l
+    jr nc, .position_clamped
+
+    .position_overflow
+        ; Position is beyond the right limit
+        ld hl, LEVEL_MAX_X
+        Store16 WRAM_POSITION_X, hl
+
+    .position_clamped
+
     ; TODO Determine if we must stream a column or not
     ; TODO If we must stream, compute the data source address and the data destination address
 
