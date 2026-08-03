@@ -209,8 +209,17 @@ UpdateSample::
 
     .position_clamped
 
-    ; TODO Determine if we must stream a column or not
-    ; TODO If we must stream, compute the data source address and the data destination address
+    ; Determine if we must stream a column or not
+    ld a, [WRAM_PREVIOUS_POSITION_X]
+    and a, $F8
+    ld b, a
+    ld a, [WRAM_POSITION_X]
+    and a, $F8
+    cp a, b
+    jr z, .stream_column
+        ; TODO Determine if we are streaming left or right
+        ; TODO If we must stream, compute the data source address and the data destination address
+    .stream_column
 
     ; Wait for the vblank
     halt
