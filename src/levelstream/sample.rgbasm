@@ -210,15 +210,31 @@ UpdateSample::
     .position_clamped
 
     ; Determine if we must stream a column or not
-    ld a, [WRAM_PREVIOUS_POSITION_X]
+    Load16 hl, WRAM_POSITION_X
+    Load16 de, WRAM_PREVIOUS_POSITION_X
+    ld a, l
     and a, $F8
     ld b, a
-    ld a, [WRAM_POSITION_X]
+    Load16 de, WRAM_POSITION_X
+    ld a, e
     and a, $F8
     cp a, b
     jr z, .stream_column
-        ; TODO Determine if we are streaming left or right
-        ; TODO If we must stream, compute the data source address and the data destination address
+        ; Determine if we are streaming left or right
+        ld a, l
+        sub a, e
+        ld l, a
+        ld a, h
+        sbc a, d
+        ld h, a
+        bit 7, h
+        jr z, .stream_request_right
+        .stream_request_left
+            ; TODO stream right, compute the data source address and the data destination address
+            jr .stream_request_done
+        .stream_request_right
+            ; TODO stream right, compute the data source address and the data destination address
+        .stream_request_done
     .stream_column
 
     ; Wait for the vblank
