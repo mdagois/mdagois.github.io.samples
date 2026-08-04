@@ -324,8 +324,9 @@ UpdateSample::
         call CopyColumn
 
         ; Clear the request
-        ld de, $0000
-        Store16 WRAM_COLUMN_COPY_SOURCE, de
+        xor a
+        ld [WRAM_COLUMN_COPY_SOURCE + 0], a
+        ld [WRAM_COLUMN_COPY_SOURCE + 1], a
     .column_request
 
     ; Set horizontal scrolling
