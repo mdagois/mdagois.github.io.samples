@@ -219,7 +219,7 @@ UpdateSample::
     ld a, e
     and a, $F8
     cp a, b
-    jr z, .stream_column
+    jp z, .stream_column
         ; Determine if we are streaming left or right
         ld a, l
         sub a, e
@@ -230,10 +230,84 @@ UpdateSample::
         bit 7, h
         jr z, .stream_request_right
         .stream_request_left
-            ; TODO stream right, compute the data source address and the data destination address
+            ; Compute the destination address
+            ; _SCRN0 + rSCX / 8 * 32
+            ld a, [WRAM_POSITION_X + 0]
+            and a, $F8
+            ld l, a
+            ld h, 0
+            add hl, hl
+            add hl, hl
+            ld de, _SCRN0
+            add hl, de
+            Store16 WRAM_COLUMN_COPY_DESTINATION, hl
+
+            ; Compute the source address
+            ; index_data + position_x / 8 * 18
+            Load16 hl, WRAM_POSITION_X
+            ld d, h
+            ld e, l
+            ; hl = position_x / 8 * 16
+            ld a, l
+            and a, $F8
+            ld l, a
+            add hl, hl
+            ; de = position_x / 8 * 2
+            srl d
+            rr e
+            srl d
+            rr e
+            ld a, e
+            and a, $FE
+            ld e, a
+            ; hl = position_x / 8 * 18
+            add hl, de
+            ; Add base address of index data
+            ld de, idx_data
+            add hl, de
+            Store16 WRAM_COLUMN_COPY_SOURCE, hl
+
             jr .stream_request_done
         .stream_request_right
-            ; TODO stream right, compute the data source address and the data destination address
+            ; Compute the destination address
+            ; _SCRN0 + (rSCX + 20) / 8 * 32
+            ld a, [WRAM_POSITION_X + 0]
+            add a, SCRN_X_B * 8
+            and a, $F8
+            ld l, a
+            ld h, 0
+            add hl, hl
+            add hl, hl
+            ld de, _SCRN0
+            add hl, de
+            Store16 WRAM_COLUMN_COPY_DESTINATION, hl
+
+            ; Compute the source address
+            ; index_data + (position_x + 160) / 8 * 18
+            Load16 hl, WRAM_POSITION_X
+            ld de, SCRN_X
+            add hl, de
+            ld d, h
+            ld e, l
+            ; hl = (position_x + 160) / 8 * 16
+            ld a, l
+            and a, $F8
+            ld l, a
+            add hl, hl
+            ; de = (position_x + 160) / 8 * 2
+            srl d
+            rr e
+            srl d
+            rr e
+            ld a, e
+            and a, $FE
+            ld e, a
+            ; hl = position_x / 8 * 18
+            add hl, de
+            ; Add base address of index data
+            ld de, idx_data
+            add hl, de
+            Store16 WRAM_COLUMN_COPY_SOURCE, hl
         .stream_request_done
     .stream_column
 
