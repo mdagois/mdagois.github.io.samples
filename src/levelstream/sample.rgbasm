@@ -103,7 +103,7 @@ InitSample::
     ld [WRAM_MOVE_X], a
 
     ; Copy the tileset to vram
-    CopyMemory chr_data, _VRAM + 2 * 1024, chr_data_end - chr_data
+    CopyMemory _VRAM + 2 * 1024, chr_data, chr_data_end - chr_data
 
     ; Copy the starting columns to vram
     def TILEMAP_OFFSET = 0
@@ -112,7 +112,7 @@ InitSample::
         ld hl, _SCRN0 + TILEMAP_OFFSET
         ld de, idx_data + ROM_OFFSET
         call CopyColumn
-        def TILEMAP_OFFSET += SCRN_VX_B
+        def TILEMAP_OFFSET += 1
         def ROM_OFFSET += SCRN_Y_B
     endr
 
