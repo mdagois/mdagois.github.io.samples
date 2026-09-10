@@ -5,7 +5,7 @@ include "utils.rgbinc"
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 def LEVEL_MOVE_MAX                  equ 8
-def LEVEL_MAX_X                     equ 1600 - SCRN_X
+def LEVEL_MAX_X                     equ 1024 - SCRN_X
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; WRAM variables
@@ -108,7 +108,7 @@ InitSample::
     ; Copy the starting columns to vram
     def TILEMAP_OFFSET = 0
     def ROM_OFFSET = 0
-    rept SCRN_X_B
+    rept SCRN_X_B + 1
         ld hl, _SCRN0 + TILEMAP_OFFSET
         ld de, idx_data + ROM_OFFSET
         call CopyColumn
@@ -215,7 +215,6 @@ UpdateSample::
     ld a, l
     and a, $F8
     ld b, a
-    Load16 de, WRAM_POSITION_X
     ld a, e
     and a, $F8
     cp a, b
@@ -232,7 +231,7 @@ UpdateSample::
         .stream_request_left
             ; Compute the destination address
             ; _SCRN0 + rSCX / 8 * 32
-            ld a, [WRAM_POSITION_X + 0]
+            ld a, [rSCX]
             and a, $F8
             ld l, a
             ld h, 0
@@ -270,14 +269,18 @@ UpdateSample::
             jr .stream_request_done
         .stream_request_right
             ; Compute the destination address
-            ; _SCRN0 + (rSCX + 20) / 8 * 32
-            ld a, [WRAM_POSITION_X + 0]
-            add a, SCRN_X_B * 8
-            and a, $F8
+            ; _SCRN0 + rSCX / 8 + 20 + 1
+            ld a, [rSCX]
+            srl a
+            srl a
+            srl a
+            add a, SCRN_X_B + 1
+            cp a, SCRN_VX_B
+            jr c, .right_overflow
+                sub a, SCRN_VX_B
+            .right_overflow
             ld l, a
             ld h, 0
-            add hl, hl
-            add hl, hl
             ld de, _SCRN0
             add hl, de
             Store16 WRAM_COLUMN_COPY_DESTINATION, hl
