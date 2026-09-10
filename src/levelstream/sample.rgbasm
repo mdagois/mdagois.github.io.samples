@@ -230,13 +230,13 @@ UpdateSample::
         jr z, .stream_request_right
         .stream_request_left
             ; Compute the destination address
-            ; _SCRN0 + rSCX / 8 * 32
-            ld a, [rSCX]
-            and a, $F8
+            ; _SCRN0 + low(position_x) / 8
+            ld a, [WRAM_POSITION_X + 0]
+            srl a
+            srl a
+            srl a
             ld l, a
             ld h, 0
-            add hl, hl
-            add hl, hl
             ld de, _SCRN0
             add hl, de
             Store16 WRAM_COLUMN_COPY_DESTINATION, hl
@@ -269,12 +269,12 @@ UpdateSample::
             jr .stream_request_done
         .stream_request_right
             ; Compute the destination address
-            ; _SCRN0 + rSCX / 8 + 20 + 1
-            ld a, [rSCX]
+            ; _SCRN0 + low(position_x) / 8 + 20 + 1
+            ld a, [WRAM_POSITION_X + 0]
             srl a
             srl a
             srl a
-            add a, SCRN_X_B + 1
+            add a, SCRN_X_B
             cp a, SCRN_VX_B
             jr c, .right_overflow
                 sub a, SCRN_VX_B
