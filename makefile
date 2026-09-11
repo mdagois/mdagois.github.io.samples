@@ -43,6 +43,7 @@ gconv_tilemap_list =
 $(resources_directory)/astronaut.chr: gconv_opt += -hw dmg-sp -tsd "16x16s:8x16k"
 $(resources_directory)/gb_pixel_art_jam_2024_xcb.chr: gconv_opt += -hw dmg-bg -trm doubles -8800 -tsd "8x8k"
 $(resources_directory)/gb_pixel_art_jam_2024_xcb.chr: gconv_tilemap_list += -tm $(resources_directory)/gb_pixel_art_jam_2024_xcb.png
+$(resources_directory)/font.chr: gconv_opt += -hw dmg-bg -trm none
 $(resources_directory)/level.chr: gconv_opt += -hw dmg-bg -trm doubles -8800
 $(resources_directory)/level.chr: gconv_tilemap_list += -tmd "8x144k" -tm $(resources_directory)/level.png
 $(resources_directory)/moon.chr: gconv_opt += -hw dmg-bg -trm doubles -8800
@@ -109,7 +110,7 @@ levelstream_sources_directory = src/levelstream
 levelstream_compile_options = -I$(levelstream_sources_directory)
 levelstream_link_options = --dmg --tiny
 levelstream_sources = $(addprefix $(levelstream_sources_directory)/,sample.rgbasm)
-levelstream_prerequisites = $(addprefix $(resources_directory)/,level.chr)
+levelstream_prerequisites = $(addprefix $(resources_directory)/,font.chr level.chr)
 
 ################################################################################
 # Game Boy Build System
