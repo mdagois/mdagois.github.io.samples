@@ -6,6 +6,7 @@ include "utils.rgbinc"
 
 def LEVEL_MOVE_MAX                  equ 8
 def LEVEL_MAX_X                     equ 1024 - SCRN_X
+def FONT_TILE_ID_0                  equ $10
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; WRAM variables
@@ -39,16 +40,22 @@ assert WRAM_SIZE <= $2000, "Too many bytes used in WRAM"
 
 section "graphics_data", rom0
 
-; Tileset
-chr_data:
+; Background tileset
+level_chr:
 incbin "level.chr"
-chr_data_end:
-assert chr_data_end - chr_data < 4 * 1024, "Too many tiles in tileset (maximum 256 tiles)"
+level_chr_end:
+assert level_chr_end - level_chr < 4 * 1024, "Too many tiles in tileset (maximum 256 tiles)"
 
 ; Tilemap columns
-idx_data:
+level_idx:
 incbin "level.idx"
-idx_data_end:
+level_idx_end:
+
+; Font
+font_chr:
+incbin "font.chr"
+font_chr_end:
+assert font_chr_end - font_chr < 2 * 1024, "Too many tiles in the font (maximum 128 tiles)"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Interrupts
@@ -103,19 +110,32 @@ InitSample::
     ld a, 1
     ld [WRAM_MOVE_X], a
 
+    ; Copy font to vram
+    CopyMemory _VRAM8000, font_chr, font_chr_end - font_chr
+
     ; Copy the level tileset to vram
-    CopyMemory _VRAM8800, chr_data, chr_data_end - chr_data
+    CopyMemory _VRAM8800, level_chr, level_chr_end - level_chr
 
     ; Copy the starting columns to vram
     def TILEMAP_OFFSET = 0
     def ROM_OFFSET = 0
     rept SCRN_X_B + 1
         ld hl, _SCRN0 + TILEMAP_OFFSET
-        ld de, idx_data + ROM_OFFSET
+        ld de, level_idx + ROM_OFFSET
         call CopyColumn
         def TILEMAP_OFFSET += 1
         def ROM_OFFSET += SCRN_Y_B
     endr
+
+    ; Set a sprite as a speed meter to display the current scrolling speed
+    ld a, OAM_Y_OFS
+    ld [_OAMRAM + OAMA_Y], a
+    ld a, OAM_X_OFS
+    ld [_OAMRAM + OAMA_X], a
+    ld a, FONT_TILE_ID_0
+    ld [_OAMRAM + OAMA_TILEID], a
+    xor a
+    ld [_OAMRAM + OAMA_FLAGS], a
 
     ; Enable the vblank and lcd interrupts
     ld a, IEF_VBLANK
@@ -123,7 +143,7 @@ InitSample::
     ei
 
     ; Set the graphics and enable the lcd
-    ld a, LCDCF_ON | LCDCF_BGON | LCDCF_BG8800 | LCDCF_BG9800
+    ld a, LCDCF_ON | LCDCF_BGON | LCDCF_BG8800 | LCDCF_BG9800 | LCDCF_OBJON | LCDCF_OBJ8
     ld [rLCDC], a
 
     ret
@@ -147,7 +167,7 @@ UpdateSample::
     jr nz, .up
         ld a, [WRAM_MOVE_X]
         inc a
-        cp a, LEVEL_MOVE_MAX
+        cp a, LEVEL_MOVE_MAX + 1
         jr nc, .pan_increase
             ld [WRAM_MOVE_X], a
         .pan_increase
@@ -264,7 +284,7 @@ UpdateSample::
             ; hl = position_x / 8 * 18
             add hl, de
             ; Add base address of index data
-            ld de, idx_data
+            ld de, level_idx
             add hl, de
             Store16 WRAM_COLUMN_COPY_SOURCE, hl
 
@@ -310,7 +330,7 @@ UpdateSample::
             ; hl = position_x / 8 * 18
             add hl, de
             ; Add base address of index data
-            ld de, idx_data
+            ld de, level_idx
             add hl, de
             Store16 WRAM_COLUMN_COPY_SOURCE, hl
         .stream_request_done
@@ -337,6 +357,11 @@ UpdateSample::
     ; Set horizontal scrolling
     ld a, [WRAM_POSITION_X + 0]
     ld [rSCX], a
+
+    ; Update the scrolling speed meter
+    ld a, [WRAM_MOVE_X]
+    add a, FONT_TILE_ID_0
+    ld [_OAMRAM + OAMA_TILEID], a
 
     ret
 
