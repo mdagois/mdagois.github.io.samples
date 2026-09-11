@@ -195,9 +195,10 @@ UpdateSample::
     .position_underflow
     ld a, high(LEVEL_MAX_X)
     cp a, h
+    jr z, .position_check_low_byte
     jr nc, .position_clamped
-    jr nz, .position_overflow
 
+    .position_check_low_byte
     ld a, low(LEVEL_MAX_X)
     cp a, l
     jr nc, .position_clamped
