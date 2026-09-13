@@ -346,7 +346,7 @@ UpdateSample::
     ld a, d
     or a, e
     jr z, .column_request
-        ; Copy the requested column
+        ; Copy the requested column into vram
         Load16 hl, WRAM_COLUMN_COPY_DESTINATION
         call CopyColumn
 
