@@ -1,0 +1,369 @@
+include "utils.rgbinc"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Constants
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+def LEVEL_SCROLL_SPEED_MAX          equ 8
+def LEVEL_MAX_X                     equ 1024 - SCRN_X
+def FONT_TILE_ID_0                  equ $10
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; WRAM variables
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+rsset _RAM
+
+; Input state
+def WRAM_INPUT                      rb sizeof_INPUT
+
+; Position inside the level
+def WRAM_POSITION_X                 rb 2
+def WRAM_PREVIOUS_POSITION_X        rb 2
+def WRAM_SCROLL_SPEED_X             rb 1
+
+; column copy request
+def WRAM_COLUMN_COPY_SOURCE         rb 2
+def WRAM_COLUMN_COPY_DESTINATION    rb 2
+
+def WRAM_END                        rb 0
+
+def WRAM_SIZE                       equ (WRAM_END - _RAM)
+
+; Sanity check
+println "WRAM usage: {d:WRAM_SIZE} bytes"
+assert WRAM_SIZE <= $2000, "Too many bytes used in WRAM"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Graphics data
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "graphics_data", rom0
+
+; Background tileset
+level_chr:
+incbin "level.chr"
+level_chr_end:
+assert level_chr_end - level_chr < 4 * 1024, "Too many tiles in tileset (maximum 256 tiles)"
+
+; Tilemap columns
+level_idx:
+incbin "level.idx"
+level_idx_end:
+
+; Font
+font_chr:
+incbin "font.chr"
+font_chr_end:
+assert font_chr_end - font_chr < 2 * 1024, "Too many tiles in the font (maximum 128 tiles)"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Interrupts
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "vblank_interrupt", rom0[$0040]
+    reti
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Sample code
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+section "sample", rom0
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Helpers
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Copy 18 indices vertically from a source address in rom to a destination
+; address in vram
+; de = source address in the rom
+; hl = destination address in the tilemap
+CopyColumn:
+    ld bc, SCRN_VX_B
+    rept SCRN_Y_B
+        ld a, [de]
+        inc de
+        ld [hl], a
+        add hl, bc
+    endr
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Initialization
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+InitSample::
+    ; Set the palettes
+    ld a, %00011011
+    ld [rBGP], a
+    ld [rOBP0], a
+    ld [rOBP1], a
+
+    ; Clear the oam and wram
+    ClearMemory _OAMRAM, OAM_COUNT * sizeof_OAM_ATTRS
+    ClearMemory _RAM, WRAM_SIZE
+
+    ; Input initialization
+    InputInitialize WRAM_INPUT
+
+    ; Initialize non-zero variables
+    ld a, 1
+    ld [WRAM_SCROLL_SPEED_X], a
+
+    ; Copy font to vram
+    CopyMemory _VRAM8000, font_chr, font_chr_end - font_chr
+
+    ; Copy the level tileset to vram
+    CopyMemory _VRAM8800, level_chr, level_chr_end - level_chr
+
+    ; Copy the starting columns to vram
+    def TILEMAP_OFFSET = 0
+    def ROM_OFFSET = 0
+    rept SCRN_X_B + 1
+        ld hl, _SCRN0 + TILEMAP_OFFSET
+        ld de, level_idx + ROM_OFFSET
+        call CopyColumn
+        def TILEMAP_OFFSET += 1
+        def ROM_OFFSET += SCRN_Y_B
+    endr
+
+    ; Set a sprite as a speed meter to display the current scrolling speed
+    ld a, OAM_Y_OFS
+    ld [_OAMRAM + OAMA_Y], a
+    ld a, OAM_X_OFS
+    ld [_OAMRAM + OAMA_X], a
+    ld a, FONT_TILE_ID_0
+    ld [_OAMRAM + OAMA_TILEID], a
+    xor a
+    ld [_OAMRAM + OAMA_FLAGS], a
+
+    ; Enable the vblank and lcd interrupts
+    ld a, IEF_VBLANK
+    ld [rIE], a
+    ei
+
+    ; Set the graphics and enable the lcd
+    ld a, LCDCF_ON | LCDCF_BGON | LCDCF_BG8800 | LCDCF_BG9800 | LCDCF_OBJON | LCDCF_OBJ8
+    ld [rLCDC], a
+
+    ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Update
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+UpdateSample::
+    ; Save previous position
+    ld a, [WRAM_POSITION_X + 0]
+    ld [WRAM_PREVIOUS_POSITION_X + 0], a
+    ld a, [WRAM_POSITION_X + 1]
+    ld [WRAM_PREVIOUS_POSITION_X + 1], a
+
+    ; Update the input
+    InputUpdate WRAM_INPUT
+
+    ; Update the scrolling speed, keeping it between in range [1-8]
+    InputTestPressed WRAM_INPUT, PADF_UP
+    jr nz, .up
+        ld a, [WRAM_SCROLL_SPEED_X]
+        inc a
+        cp a, LEVEL_SCROLL_SPEED_MAX + 1
+        jr nc, .pan_increase
+            ld [WRAM_SCROLL_SPEED_X], a
+        .pan_increase
+    .up
+    InputTestPressed WRAM_INPUT, PADF_DOWN
+    jr nz, .down
+        ld a, [WRAM_SCROLL_SPEED_X]
+        dec a
+        jr z, .pan_decrease
+            ld [WRAM_SCROLL_SPEED_X], a
+        .pan_decrease
+    .down
+
+    ; Update the position inside the level
+    InputTestHeld WRAM_INPUT, PADF_LEFT
+    jr nz, .left
+        ld a, [WRAM_SCROLL_SPEED_X]
+        ld b, a
+        ld a, [WRAM_POSITION_X + 0]
+        sub a, b
+        ld [WRAM_POSITION_X + 0], a
+        ld a, [WRAM_POSITION_X + 1]
+        sbc a, 0
+        ld [WRAM_POSITION_X + 1], a
+    .left
+    InputTestHeld WRAM_INPUT, PADF_RIGHT
+    jr nz, .right
+        ld a, [WRAM_SCROLL_SPEED_X]
+        ld b, a
+        ld a, [WRAM_POSITION_X + 0]
+        add a, b
+        ld [WRAM_POSITION_X + 0], a
+        ld a, [WRAM_POSITION_X + 1]
+        adc a, 0
+        ld [WRAM_POSITION_X + 1], a
+    .right
+
+    ; Clamp the position
+    Load16 hl, WRAM_POSITION_X
+    bit 7, h
+    jr z, .position_underflow
+        ; Position is below zero, clamp to zero
+        ld hl, 0
+        Store16 WRAM_POSITION_X, hl
+        jr .position_clamped
+    .position_underflow
+    ld a, high(LEVEL_MAX_X)
+    cp a, h
+    jr z, .position_check_low_byte
+    jr nc, .position_clamped
+
+    .position_check_low_byte
+    ld a, low(LEVEL_MAX_X)
+    cp a, l
+    jr nc, .position_clamped
+
+    .position_overflow
+        ; Position is beyond the right limit
+        ld hl, LEVEL_MAX_X
+        Store16 WRAM_POSITION_X, hl
+
+    .position_clamped
+
+    ; Determine if we must stream a column or not
+    Load16 hl, WRAM_POSITION_X
+    Load16 de, WRAM_PREVIOUS_POSITION_X
+    ld a, l
+    and a, $F8
+    ld b, a
+    ld a, e
+    and a, $F8
+    cp a, b
+    jp z, .stream_column
+        ; Determine if we are streaming left or right
+        ld a, l
+        sub a, e
+        ld l, a
+        ld a, h
+        sbc a, d
+        ld h, a
+        bit 7, h
+        jr z, .stream_request_right
+        .stream_request_left
+            ; Stream left
+            ; Compute the destination address
+            ; _SCRN0 + low(position_x) / 8
+            ld a, [WRAM_POSITION_X + 0]
+            srl a
+            srl a
+            srl a
+            ld l, a
+            ld h, 0
+            ld de, _SCRN0
+            add hl, de
+            Store16 WRAM_COLUMN_COPY_DESTINATION, hl
+
+            ; Compute the source address
+            ; index_data + position_x / 8 * 18
+            Load16 hl, WRAM_POSITION_X
+            ld d, h
+            ld e, l
+            ; hl = position_x / 8 * 16
+            ld a, l
+            and a, $F8
+            ld l, a
+            add hl, hl
+            ; de = position_x / 8 * 2
+            srl d
+            rr e
+            srl d
+            rr e
+            ld a, e
+            and a, $FE
+            ld e, a
+            ; hl = position_x / 8 * 18
+            add hl, de
+            ; Add base address of index data
+            ld de, level_idx
+            add hl, de
+            Store16 WRAM_COLUMN_COPY_SOURCE, hl
+
+            jr .stream_request_done
+        .stream_request_right
+            ; Stream right
+            ; Compute the destination address
+            ; _SCRN0 + low(position_x) / 8 + 20 + 1
+            ld a, [WRAM_POSITION_X + 0]
+            srl a
+            srl a
+            srl a
+            add a, SCRN_X_B
+            cp a, SCRN_VX_B
+            jr c, .right_overflow
+                sub a, SCRN_VX_B
+            .right_overflow
+            ld l, a
+            ld h, 0
+            ld de, _SCRN0
+            add hl, de
+            Store16 WRAM_COLUMN_COPY_DESTINATION, hl
+
+            ; Compute the source address
+            ; index_data + (position_x + 160) / 8 * 18
+            Load16 hl, WRAM_POSITION_X
+            ld de, SCRN_X
+            add hl, de
+            ld d, h
+            ld e, l
+            ; hl = (position_x + 160) / 8 * 16
+            ld a, l
+            and a, $F8
+            ld l, a
+            add hl, hl
+            ; de = (position_x + 160) / 8 * 2
+            srl d
+            rr e
+            srl d
+            rr e
+            ld a, e
+            and a, $FE
+            ld e, a
+            ; hl = position_x / 8 * 18
+            add hl, de
+            ; Add base address of index data
+            ld de, level_idx
+            add hl, de
+            Store16 WRAM_COLUMN_COPY_SOURCE, hl
+        .stream_request_done
+    .stream_column
+
+    ; Wait for the vblank
+    halt
+
+    ; Check if there is any request (source is not $0000)
+    Load16 de, WRAM_COLUMN_COPY_SOURCE
+    ld a, d
+    or a, e
+    jr z, .column_request
+        ; Copy the requested column into vram
+        Load16 hl, WRAM_COLUMN_COPY_DESTINATION
+        call CopyColumn
+
+        ; Clear the request
+        xor a
+        ld [WRAM_COLUMN_COPY_SOURCE + 0], a
+        ld [WRAM_COLUMN_COPY_SOURCE + 1], a
+    .column_request
+
+    ; Set the horizontal scrolling
+    ld a, [WRAM_POSITION_X + 0]
+    ld [rSCX], a
+
+    ; Update the scrolling speed meter
+    ld a, [WRAM_SCROLL_SPEED_X]
+    add a, FONT_TILE_ID_0
+    ld [_OAMRAM + OAMA_TILEID], a
+
+    ret
+

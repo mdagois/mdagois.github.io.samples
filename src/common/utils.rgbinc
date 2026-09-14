@@ -176,6 +176,42 @@ macro CallHL
     .call_return_address\@
 endm
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; 16-bit
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Load 2 bytes at address \2 into 16-bit register \1.
+; Example: Load16 de, $FF82
+macro Load16
+if high(\2) == $FF
+    ldh a, [\2 + 0]
+    ld low(\1), a
+    ldh a, [\2 + 1]
+    ld high(\1), a
+else
+    ld a, [\2 + 0]
+    ld low(\1), a
+    ld a, [\2 + 1]
+    ld high(\1), a
+endc
+endm
+
+; Load the content of 16-bit register \2 into two bytes at address \1.
+; Example: Store16 $FF82, hl
+macro Store16
+if high(\1) == $FF
+    ld a, low(\2)
+    ldh [\1 + 0], a
+    ld a, high(\2)
+    ldh [\1 + 1], a
+else
+    ld a, low(\2)
+    ld [\1 + 0], a
+    ld a, high(\2)
+    ld [\1 + 1], a
+endc
+endm
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 endc

@@ -1,0 +1,46 @@
+SUMMARY:
+	ROM0: 7100 bytes used / 25668 free
+
+ROM0 bank #0:
+	SECTION: $0000-$0012 ($0013 bytes) ["main"]
+	         $0000 = main
+	         $0000 = main.wait_vblank_u1
+	         $000e = main.loop
+	EMPTY: $0013-$003f ($002d bytes)
+	SECTION: $0040-$0040 ($0001 byte) ["vblank_interrupt"]
+	EMPTY: $0041-$00ff ($00bf bytes)
+	SECTION: $0100-$014f ($0050 bytes) ["header"]
+	         $0100 = entrypoint
+	SECTION: $0150-$196f ($1820 bytes) ["graphics_data"]
+	         $0150 = level_chr
+	         $0a70 = level_chr_end
+	         $0a70 = level_idx
+	         $1370 = font_chr
+	         $1370 = level_idx_end
+	         $1970 = font_chr_end
+	SECTION: $1970-$1ca7 ($0338 bytes) ["sample"]
+	         $1970 = CopyColumn
+	         $19bc = InitSample
+	         $19ca = InitSample.clear_u1
+	         $19d9 = InitSample.clear_u2
+	         $19fe = InitSample.copy_u3
+	         $1a11 = InitSample.copy_u4
+	         $1afa = UpdateSample
+	         $1b53 = UpdateSample.up
+	         $1b53 = UpdateSample.pan_increase
+	         $1b63 = UpdateSample.down
+	         $1b63 = UpdateSample.pan_decrease
+	         $1b7d = UpdateSample.left
+	         $1b97 = UpdateSample.right
+	         $1bb0 = UpdateSample.position_underflow
+	         $1bb7 = UpdateSample.position_check_low_byte
+	         $1bbc = UpdateSample.position_overflow
+	         $1bc7 = UpdateSample.position_clamped
+	         $1bec = UpdateSample.stream_request_left
+	         $1c2e = UpdateSample.stream_request_right
+	         $1c3f = UpdateSample.right_overflow
+	         $1c7a = UpdateSample.stream_column
+	         $1c7a = UpdateSample.stream_request_done
+	         $1c99 = UpdateSample.column_request
+	EMPTY: $1ca8-$7fff ($6358 bytes)
+	TOTAL EMPTY: $6444 bytes
